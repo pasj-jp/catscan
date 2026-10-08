@@ -1,0 +1,65 @@
+
+.error-panel {
+    display:flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.extra-jacow-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.score-type {
+    display: flex;
+    gap: 8px;
+    margin:16px 0 0 0;
+}
+
+.ok-type {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top:16px;
+}
+
+.details-jacow {
+    padding: 8px;
+}
+
+.section {
+    margin: 16px 0;
+}
+
+.card-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.full-width-table {
+    margin: 0 -8px;
+}
+
+.extra-jacow-info {
+    padding:8px;
+}
+
+.title-icons {
+    margin-left:-8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.title-icons h4 {
+    margin-bottom:0;
+}
+
+.table th {
+    text-align: center;
+}
+
+.jacow-not-found {padding: 8px;}

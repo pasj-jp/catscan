@@ -1,0 +1,27 @@
+.dropzone-box {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    cursor: pointer;
+    align-items: center;
+    border: 2px dashed #3182ce;
+    border-radius: 8px;
+    background-color: #f7fafc;
+    padding: 24px;
+    min-height: 180px;
+    text-align: center;
+    transition: all 0.2s ease-in-out;
+}
+
+.dropzone-box:hover {
+    background-color: #ebf8ff;
+    border-color: #2b6cb0;
+}
+
+.inline-block {
+    display: inline-block;
+}
+
+.custom-control-label {
+    cursor: pointer;
+}

@@ -1,0 +1,38 @@
+.issue-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.issue-nav {
+    margin: 8px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.issue-description .example {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 8px 0;
+}
+
+.editor {
+    font-family: monospace;
+    white-space: pre;
+    overflow:auto;
+    width:100%;
+    height:400px;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.issue {
+    /* Highlight typos */
+    background-color: #ffcccc;
+    border-radius: 4px;
+
+}

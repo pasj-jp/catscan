@@ -1,0 +1,106 @@
+.header {
+    background-color: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.header-content {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-brand {
+    display: flex;
+    align-items: center;
+    user-select: none;
+}
+
+.pasj-logo {
+    height: 72px;
+    width: auto;
+    object-fit: contain;
+}
+
+.header-divider {
+    width: 2px;
+    height: 46px;
+    background-color: #e2e8f0;
+    margin: 0 18px;
+}
+
+.header-title-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.header-title-main {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+}
+
+.header-title-sub {
+    margin-top: 3px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #64748b;
+    letter-spacing: 0.02em;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+}
+
+.lang-switcher .btn {
+    padding: 5px 14px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+@media (max-width: 767px) {
+    .header-content {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+    }
+
+    .header-brand {
+        min-width: 0;
+        flex: 1 1 100%;
+    }
+
+    .pasj-logo {
+        height: 56px;
+        max-width: 28vw;
+    }
+
+    .header-divider {
+        height: 40px;
+        margin: 0 10px;
+        flex: 0 0 2px;
+    }
+
+    .header-title-group {
+        min-width: 0;
+    }
+
+    .header-title-main {
+        font-size: 1rem;
+    }
+
+    .header-title-sub {
+        font-size: 0.75rem;
+    }
+
+    .header-actions {
+        margin-left: auto;
+    }
+}
