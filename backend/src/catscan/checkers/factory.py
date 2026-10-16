@@ -45,6 +45,35 @@ def detect_template(file_source: Union[bytes, str, io.BytesIO]) -> str:
         return "jacow"
 
 
+def detect_latex_template(file_source: Union[bytes, str, io.BytesIO]) -> str:
+    """
+    Auto-detect whether the LaTeX source is based on PASJ or JACoW template.
+    """
+    try:
+        if isinstance(file_source, bytes):
+            text = file_source.decode("utf-8", errors="replace")
+        elif isinstance(file_source, io.BytesIO):
+            text = file_source.getvalue().decode("utf-8", errors="replace")
+        elif isinstance(file_source, str):
+            if "\n" not in file_source and (file_source.endswith(".tex") or "/" in file_source or "\\" in file_source):
+                with open(file_source, "r", encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+            else:
+                text = file_source
+        else:
+            text = str(file_source)
+
+        if re.search(r'\\documentclass(?:\s*\[[^\]]*\])?\s*\{[^}]*pasj', text, re.IGNORECASE):
+            return "pasj"
+        if "\\jtitle" in text or "\\jauthor" in text:
+            return "pasj"
+        if re.search(r'[\u3040-\u30ff]', text[:2000]):
+            return "pasj"
+        return "jacow"
+    except Exception:
+        return "jacow"
+
+
 def get_checker(doc_type: str = "word", template: str = "auto", file_source: Optional[Union[bytes, str, io.BytesIO]] = None) -> tuple[BasePaperChecker, str]:
     """
     Factory method to retrieve the appropriate document checker.
@@ -57,6 +86,11 @@ def get_checker(doc_type: str = "word", template: str = "auto", file_source: Opt
     template = template.lower()
 
     if doc_type == "latex":
+        if template == "auto" and file_source is not None:
+            template = detect_latex_template(file_source)
+        elif template == "auto":
+            template = "jacow"
+
         if template == "pasj":
             return PasjLatexChecker(), "pasj"
         return JacowLatexChecker(), "jacow"

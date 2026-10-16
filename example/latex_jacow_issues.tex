@@ -1,0 +1,53 @@
+\documentclass[a4paper]{article}
+\usepackage{url}
+
+\begin{document}
+\title{MANUSCRIPT WITH MULTIPLE CITATION ISSUES FOR JACOW}
+\author{Test Author, Test Institute}
+\maketitle
+
+\begin{abstract}
+This sample document intentionally contains multiple reference style violations to test the JACoW LaTeX validator issue detectors.
+\end{abstract}
+
+\section{INTRODUCTION}
+Testing reference rule violations:
+\cite{bad_etal, bad_comma, bad_doi_space, bad_doi_url, bad_vol_issue, bad_no_prefix, bad_doi_period, bad_paren}.
+
+\begin{thebibliography}{9}
+
+% Issue 1: et al. not wrapped in italics
+\bibitem{bad_etal}
+J. Smith et al., "Study on Beam Instabilities", Phys. Rev., 2021.
+
+% Issue 2: et al. preceded by comma
+\bibitem{bad_comma}
+M. Johnson, \textit{et al.}, "Vacuum Chamber Impedance", IEEE Trans., 2020.
+
+% Issue 3: DOI contains space after colon
+\bibitem{bad_doi_space}
+R. Williams, "Collimation Schemes", \url{doi: 10.18429/JACoW-IPAC2022-001}
+
+% Issue 4: DOI written as full web URL
+\bibitem{bad_doi_url}
+D. Brown, "Magnet Design", \url{https://doi.org/10.18429/JACoW-IPAC2022-002}
+
+% Issue 5: Incorrect Volume / Issue syntax (Vol. X, Issue Y instead of vol. X, no. Y)
+\bibitem{bad_vol_issue}
+K. Davis, "RF Feedback Systems", J. Appl. Phys., Vol. 45, Issue 2, pp. 100-105, 2018.
+
+% Issue 6: Missing doi: prefix in \url{}
+\bibitem{bad_no_prefix}
+H. Miller, "Diagnostics Overview", \url{10.18429/JACoW-IPAC2023-003}
+
+% Issue 7: DOI ends with period
+\bibitem{bad_doi_period}
+E. Wilson, "Beam Loss Monitors", \url{doi:10.18429/JACoW-IPAC2023-004.}
+
+% Issue 8: DOI wrapped in parenthesis
+\bibitem{bad_paren}
+P. Taylor, "Superconducting Magnets", (\url{doi:10.18429/JACoW-IPAC2023-005})
+
+\end{thebibliography}
+
+\end{document}

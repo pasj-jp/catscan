@@ -1,0 +1,26 @@
+# =============================================================================
+#  Common Japanese Academic Publishing Rules (PASJ / Japanese manuscripts)
+#  Shared between Word and LaTeX checkers.
+# =============================================================================
+
+# Matches Japanese characters (Hiragana, Katakana, Kanji)
+cjk_regex: '[\u3040-\u30ff\u4e00-\u9faf]'
+
+# Japanese punctuation rules:
+# Use '、' and '。', forbidden to use full-width comma '，' and period '．'.
+punctuation:
+  forbidden_chars: ['，', '．']
+  fail_message_ja: '全角カンマ「，」または全角ピリオド「．」は使用禁止です（「、」「。」を使用）。'
+
+# Author name delimiter:
+# Both Japanese and English author lists must be separated by half-width comma + space (', ').
+author_delimiter:
+  forbidden_chars: ['，', '、']
+  expected: ', '
+  fail_message_ja: "著者名の区切りに全角「，」または読点「、」が含まれています（半角カンマ＋スペース ', ' を使用）"
+
+# Figure captions:
+# Figure captions must end with a period '.', optionally followed by note/credit in parentheses.
+figure_caption:
+  ends_with_period_regex: '\.\s*(?:\([^)]+\))?$'
+  fail_message_ja: '図キャプションの文末には必ずピリオド（.）を付けてください。'

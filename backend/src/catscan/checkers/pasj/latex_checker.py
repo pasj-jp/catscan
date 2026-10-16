@@ -1,21 +1,19 @@
-import io
-from typing import Any, Dict, Optional, Union
-
-from ..base import BasePaperChecker
+from ..latex_engine import BibItem, Issue, Location, RuleBasedLatexChecker  # noqa: F401 (re-exported)
 
 
-class PasjLatexChecker(BasePaperChecker):
-    """Placeholder for the future PASJ LaTeX checker."""
+class PasjLatexChecker(RuleBasedLatexChecker):
+    """
+    PASJ Japanese LaTeX manuscript validator.
+    Inspects .tex source code for PASJ conventions:
+    - Document class (PASJ202x)
+    - Bilingual titles (\\jtitle & \\title)
+    - Bilingual authors (\\jauthor & \\author) and half-width comma delimiter
+    - English abstract (\\Abstract)
+    - Japanese punctuation rules (「、」「。」 vs 「，」「．」)
+    - English figure & table captions & trailing period on figure captions
+    - Bibliography formatting & DOI/URL conventions
 
-    def validate(
-        self,
-        file_source: Union[str, bytes, io.BytesIO],
-        filename: str = "document.tex",
-        conference_id: Optional[Union[str, int]] = None,
-    ) -> Dict[str, Any]:
-        return {
-            "error": "PASJ LaTeX validation has not been implemented yet.",
-            "code": "checker_not_implemented",
-            "template_type": "pasj",
-            "filename": filename,
-        }
+    The rules themselves live in ``checkers/rules/pasj_latex.yaml``.
+    """
+
+    rules_name = "pasj_latex"

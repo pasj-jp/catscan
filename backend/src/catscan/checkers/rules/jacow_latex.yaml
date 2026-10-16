@@ -1,0 +1,93 @@
+# =============================================================================
+#  JACoW LaTeX checker rules
+# =============================================================================
+#
+#  Only the bibliography (\bibitem entries) is checked for JACoW LaTeX papers.
+#
+#  How a rule works
+#  ----------------
+#    issue:       ID of the problem; its text is looked up under `messages`.
+#    scope:       bibitem  -> evaluated once for every \bibitem
+#    target:      text      = reference text with comments and extra spaces removed
+#                 original  = raw reference text exactly as written in the .tex file
+#    match:       regex; the issue is reported when it IS found
+#    not_match:   regex; the issue is reported when it is NOT found
+#    when:        regex; the rule is only evaluated when this is found
+#    ignore_case: true -> regexes are case-insensitive
+#
+#  Tip: always write regexes in 'single quotes' so backslashes stay as-is.
+# =============================================================================
+
+report:
+  issue_format: "Issue found in reference {name}: {message}"
+
+rules:
+  - issue: ET_AL_NOT_WRAPPED
+    scope: bibitem
+    target: original
+    when: 'et\s+al\.'
+    not_match: '(\\emph\s*\{|\\textit\s*\{|\\it\s*\{|\\em\s*\{|\\itshape\s*\{|{\\it\s+|{\\em\s+|{\\itshape\s+)\s*et\s+al\.'
+    ignore_case: true
+
+  - issue: DOI_CONTAINS_SPACE
+    scope: bibitem
+    target: text
+    match: 'doi:\s+10\.'
+    ignore_case: true
+
+  - issue: INCORRECT_STYLE_REFERENCE
+    scope: bibitem
+    target: text
+    note: "APS style (e.g. '12, 345 (2020)') or broken web style (': N. p., 2020. Web.')"
+    match: '\d+[, -]+?\d+\s+\(\d{4}\)|:\s*N\.\s*p\.,\s*\d{4}\.\s*Web\.'
+
+  - issue: NO_DOI_PREFIX
+    scope: bibitem
+    target: text
+    match: '\\url\s*\{\s*10\.'
+
+  - issue: DOI_IS_URL
+    scope: bibitem
+    target: text
+    match: 'https?://(?:dx\.)?doi\.org'
+    ignore_case: true
+
+  - issue: VOLUME_ISSUE
+    scope: bibitem
+    target: text
+    match: 'Vol\.\s*\d+,\s*Issue\s*\d+,'
+
+  # Resolves each DOI at https://doi.org (only when CATSCAN_CHECK_DOI=true).
+  # Can report DOI_ENDS_IN_PERIOD, DOI_ENDS_IN_PARENTHESIS or DOI_NOT_FOUND.
+  - scope: bibitem
+    check: doi_online
+
+messages:
+  INCORRECT_STYLE_REFERENCE: >-
+    Reference does not appear to be in the JACoW style, please adjust your reference style
+    to be consistent with the JACoW style reference, please see https://www.jacow.org/Authors/FormattingCitations
+  ET_AL_WITH_COMMA: >-
+    et al. is preceded by a comma, which is incorrect. Please remove the comma before the et al.
+  ET_AL_NOT_WRAPPED: >-
+    et al. is not wrapped in a command to make it italic. Please use \emph{et al.} instead of et al.
+  DOI_CONTAINS_SPACE: >-
+    DOI contains a space after the colon. Please remove the space.
+  DOI_NOT_WRAPPED: >-
+    DOI not wrapped in \url{} command. Please use \url{doi:10.18429/JACoW-IPAC2023-XXXX}
+    instead of doi:10.18429/JACoW-IPAC2023-XXXX
+  NO_DOI_PREFIX: >-
+    DOI does not contain "doi:" prefix. It should appear like this \url{doi:10.18429/JACoW-IPAC2023-XXXX}
+  DOI_IS_URL: >-
+    DOI is written as a web URL (including https://doi.org/) which is incorrect.
+    Remove the https://doi.org/, and write it as per this example. \url{doi:10.18429/JACoW-IPAC2023-XXXX}
+  VOLUME_ISSUE: >-
+    JACoW references use vol. X and no. X. You have used not Vol. X, Issue X, which is incorrect.
+    Please correct your reference style. You can generate correctly formatted references at
+    https://refs.jacow.org/ or you can refer to the JACoW reference style guide at
+    https://www.jacow.org/Authors/FormattingCitations
+  DOI_ENDS_IN_PERIOD: >-
+    This DOI ends in a period, which is incorrect for this specific DOI. Please remove the period.
+  DOI_ENDS_IN_PARENTHESIS: >-
+    DOI is wrapped in parenthesis, please remove these.
+  DOI_NOT_FOUND: >-
+    DOI was checked, and does not appear to be valid. Please check if the DOI is correct.

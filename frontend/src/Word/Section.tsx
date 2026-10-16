@@ -2,6 +2,7 @@ import React from "react";
 import Rules from "./Rules";
 import ExtraInfo from "./ExtraInfo";
 import Details from "./Details";
+import { useLanguage } from "../i18n";
 
 type OkType = true | false | 2;
 
@@ -13,12 +14,16 @@ type ExtraInfoType = {
 };
 
 type Rule = {
-    alignment: string
-    bold: boolean
-    font_size: number
+    alignment?: string
+    bold?: boolean
+    font_name?: string
+    font_size?: number
     italic?: boolean
-    space_after: number | [string | number],
-    space_before: number | [string | number],
+    all_caps?: boolean
+    space_after?: number | [string | number],
+    space_before?: number | [string | number],
+    first_line_indent?: number
+    hanging_indent?: number
     type: string
     styles: { [key: string]: string; }
 };
@@ -44,20 +49,60 @@ type SectionArgs = {
     section_header?: string
 }
 
-import { useLanguage } from "../i18n";
-
 const columnHeaders: { [key: string]: string } = {
+    'font_name': 'Font Family',
+    'font_size': 'Font Size (pt)',
     'alignment': 'Alignment',
-    'font_size': 'Font Size',
     'all_caps': 'All Caps',
     'case': 'Case',
+    'case_ok': 'Case Ok',
     'bold': 'Bold',
     'italic': 'Italic',
-    'space_before': 'Space Before',
-    'space_after': 'Space After',
-    'first_line_indent': 'First Line Indent',
-    'hanging_indent': 'Hanging Indent',
+    'space_before': 'Space Before (pt)',
+    'space_after': 'Space After (pt)',
+    'first_line_indent': 'First Line Indent (pt)',
+    'hanging_indent': 'Hanging Indent (pt)',
 };
+
+const columnHeadersJa: { [key: string]: string } = {
+    'font_name': 'フォント名',
+    'font_size': 'サイズ (pt)',
+    'alignment': '配置',
+    'all_caps': '大文字設定',
+    'case': '大文字・小文字',
+    'case_ok': '大文字判定',
+    'bold': '太字',
+    'italic': '斜体',
+    'space_before': '段落前 (pt)',
+    'space_after': '段落後 (pt)',
+    'first_line_indent': '字下げ (pt)',
+    'hanging_indent': 'ぶら下げ (pt)',
+};
+
+export const getColumnHeader = (col: string, language: string): string => {
+    if (language === 'ja' && columnHeadersJa[col]) {
+        return columnHeadersJa[col];
+    }
+    if (columnHeaders[col]) {
+        return columnHeaders[col];
+    }
+    const clean = col.replace(/_/g, ' ');
+    return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+};
+
+export const getRuleAttributes = (rules?: { [key: string]: Rule }): string[] => {
+    const attrs: string[] = [];
+    if (!rules) return attrs;
+    Object.values(rules).forEach((ruleObj) => {
+        Object.keys(ruleObj).forEach((k) => {
+            if (k !== 'type' && k !== 'styles' && !attrs.includes(k)) {
+                attrs.push(k);
+            }
+        });
+    });
+    return attrs;
+};
+
 const Section: React.FC<SectionProps> = (props) => {
     const { language } = useLanguage();
     const sectionTitle = props.title || props.name || 'Section';
@@ -67,7 +112,7 @@ const Section: React.FC<SectionProps> = (props) => {
             case 'Paragraphs':
                 return {'truncate_text': 200}
             case 'References':
-                return {'truncate_text': 50}
+                return {'truncate_text': 90}
             case 'Figures':
                 return {'style_multi': true}
             case 'Abstract Submission':

@@ -1,0 +1,226 @@
+# =============================================================================
+#  PASJ LaTeX checker rules (PASJ 和文原稿)
+# =============================================================================
+#
+#  targets  — pieces of text pulled out of the .tex source, used by document rules
+#    macro:   \name{...}   (a list means "any of these names")
+#    env:     fallback \begin{env}...\end{env} if the macro is not found
+#    regex:   custom regex, group 1 is used as the text
+#    builtin: body  -> body text without comments / math / commands,
+#                      taken between the `start` and `end` regexes
+#    strip_comments: remove %-comments from the extracted text
+#    ignore_comments: false -> also accept a match inside a %-comment
+#
+#  captions — figure / table environments whose first \caption{...} is checked
+#
+#  rules — evaluated top to bottom (document → figure → table → bibitem)
+#    issue:       ID of the problem; its text is looked up under `messages`
+#    scope:       document (default) | figure | table | bibitem
+#    target:      document: a name from `targets`
+#                 bibitem:  text (cleaned) | original (raw)
+#    name:        label printed in "Issue found in <name>: ..."
+#    missing:     true -> report when the target is not found at all
+#    match:       regex; report when it IS found
+#    not_match:   regex; report when it is NOT found (empty text is skipped)
+#    when:        regex; only evaluate the rule when this is found
+#    ignore_case: true -> regexes are case-insensitive
+#
+#  Tip: always write regexes in 'single quotes' so backslashes stay as-is.
+#  Japanese characters (Hiragana / Katakana / Kanji): '[\u3040-\u30ff\u4e00-\u9faf]'
+# =============================================================================
+
+report:
+  issue_format: "Issue found in {name}: {message}"
+  extra_output:
+    report_type: latex
+    detected_template: pasj
+    template_name: "PASJ 和文原稿"
+
+targets:
+  documentclass:
+    regex: '\\documentclass(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}'
+    ignore_comments: false
+  jtitle:
+    macro: jtitle
+  title:
+    macro: title
+  jauthor:
+    macro: jauthor
+  author:
+    macro: author
+  abstract:
+    macro: [Abstract, abstract]
+    env: abstract
+    strip_comments: true
+  body:
+    builtin: body
+    start: '\\maketitle'
+    end: '\\begin\{thebibliography\}'
+
+captions:
+  figure:
+    envs: [figure, 'figure*']
+    name: figure caption
+  table:
+    envs: [table, 'table*']
+    name: table title
+
+rules:
+  # --- 1. Document class ---
+  - issue: INCORRECT_DOCUMENT_CLASS
+    target: documentclass
+    name: documentclass
+    missing: true
+    not_match: 'pasj'
+    ignore_case: true
+
+  # --- 2. Bilingual titles ---
+  - issue: MISSING_JAPANESE_TITLE
+    target: jtitle
+    name: title
+    missing: true
+  - issue: MISSING_ENGLISH_TITLE
+    target: title
+    name: title
+    missing: true
+  - issue: ENGLISH_TITLE_CONTAINS_JAPANESE
+    target: title
+    name: title
+    match: '[\u3040-\u30ff\u4e00-\u9faf]'
+
+  # --- 3. Bilingual authors ---
+  - issue: MISSING_JAPANESE_AUTHORS
+    target: jauthor
+    name: authors
+    missing: true
+  - issue: AUTHORS_DELIMITER_FULLWIDTH
+    target: jauthor
+    name: authors
+    match: '[、，]'
+  - issue: MISSING_ENGLISH_AUTHORS
+    target: author
+    name: authors
+    missing: true
+  - issue: AUTHORS_DELIMITER_FULLWIDTH
+    target: author
+    name: authors
+    match: '[、，]'
+
+  # --- 4. English abstract ---
+  - issue: MISSING_ABSTRACT
+    target: abstract
+    name: abstract
+    missing: true
+  - issue: ABSTRACT_CONTAINS_JAPANESE
+    target: abstract
+    name: abstract
+    match: '[\u3040-\u30ff\u4e00-\u9faf]'
+
+  # --- 5. Japanese punctuation in body text ---
+  - issue: BODY_PUNCTUATION_COMMA
+    target: body
+    name: punctuation
+    match: '，'
+  - issue: BODY_PUNCTUATION_PERIOD
+    target: body
+    name: punctuation
+    match: '．'
+
+  # --- 6. Figure and table captions ---
+  - issue: CAPTION_CONTAINS_JAPANESE
+    scope: figure
+    match: '[\u3040-\u30ff\u4e00-\u9faf]'
+  - issue: FIGURE_CAPTION_MISSING_PERIOD
+    scope: figure
+    note: "Must end with '.', '.}' or a period followed by a note such as '. (Publishing approved by JACoW)'"
+    not_match: '\.\}?$|\.\s*\([^)]+\)\s*$'
+  - issue: CAPTION_CONTAINS_JAPANESE
+    scope: table
+    match: '[\u3040-\u30ff\u4e00-\u9faf]'
+
+  # --- 7. References ---
+  - issue: ET_AL_NOT_WRAPPED
+    scope: bibitem
+    target: original
+    when: 'et\s+al\.'
+    not_match: '(\\emph\s*\{|\\textit\s*\{|\\it\s*\{|\\em\s*\{|\\itshape\s*\{|{\\it\s+|{\\em\s+|{\\itshape\s+)\s*et\s+al\.'
+    ignore_case: true
+  - issue: ET_AL_WITH_COMMA
+    scope: bibitem
+    target: original
+    match: ',\s*(?:\\(?:emph|textit|it|em)\s*\{)?\s*et\s+al\.'
+    ignore_case: true
+  - issue: DOI_CONTAINS_SPACE
+    scope: bibitem
+    target: text
+    match: 'doi:\s+10\.'
+    ignore_case: true
+  - issue: DOI_ENDS_IN_PERIOD
+    scope: bibitem
+    target: text
+    match: '\\url\s*\{\s*(?:doi:)?10\.[^}]+\.\s*\}'
+    ignore_case: true
+  - issue: URL_ENDS_IN_PERIOD
+    scope: bibitem
+    target: text
+    match: '\\url\s*\{\s*https?://[^}]+\.\s*\}'
+    ignore_case: true
+
+messages:
+  INCORRECT_DOCUMENT_CLASS: >-
+    公式のPASJドキュメントクラス（例: \documentclass{PASJ2026}）が使用されていません。最新のPASJテンプレートを使用してください。 /
+    Document class does not appear to use the official PASJ class (e.g. \documentclass{PASJ2026}).
+    Please use the latest PASJ document template class from https://www.pasj.jp/templates.html.
+  MISSING_JAPANESE_TITLE: >-
+    和文題名（\jtitle{...}）が欠落しています。PASJ和文原稿では和文・英文両方のタイトル併記が必須です。 /
+    Japanese title (\jtitle{...}) is missing. In PASJ Japanese papers, both Japanese and English titles are required.
+  MISSING_ENGLISH_TITLE: >-
+    英文題名（\title{...}）が欠落しています。PASJ和文原稿では和文・英文両方のタイトル併記が必須です。 /
+    English title (\title{...}) is missing. In PASJ Japanese papers, both Japanese and English titles are required.
+  ENGLISH_TITLE_CONTAINS_JAPANESE: >-
+    英文題名（\title{...}）に日本語文字が含まれています。英文題名は英語（大文字）で記述してください。 /
+    English title (\title{...}) contains Japanese characters. It must be written in English.
+  MISSING_JAPANESE_AUTHORS: >-
+    和文著者名（\jauthor{...}）が欠落しています。PASJ和文原稿では和文・英文両方の著者名併記が必須です。 /
+    Japanese author block (\jauthor{...}) is missing. In PASJ Japanese papers, both Japanese and English authors are required.
+  MISSING_ENGLISH_AUTHORS: >-
+    英文著者名・所属（\author{...}）が欠落しています。PASJ和文原稿では和文・英文両方の著者名併記が必須です。 /
+    English author block (\author{...}) is missing. In PASJ Japanese papers, both Japanese and English authors are required.
+  AUTHORS_DELIMITER_FULLWIDTH: >-
+    著者名の区切りには読点「、」や全角カンマ「，」ではなく、半角カンマ＋半角スペース1個（', '）を使用してください。 /
+    Author names should be separated by a half-width comma followed by a space (', '), not Japanese punctuation '、' or full-width comma '，'.
+  MISSING_ABSTRACT: >-
+    英文要旨（\Abstract{...}）が欠落しています。PASJ和文原稿でも英語のAbstractが必須です。 /
+    Abstract (\Abstract{...}) is missing. PASJ Japanese papers require an English abstract.
+  ABSTRACT_CONTAINS_JAPANESE: >-
+    要旨（\Abstract{...}）に日本語文字が含まれています。要旨は全編英語で1段落のみで記述してください。 /
+    Abstract must be written entirely in English. Japanese characters (Hiragana / Katakana) were detected in \Abstract{...}.
+  BODY_PUNCTUATION_COMMA: >-
+    本文の句読点違反: 日本語の文章では全角カンマ「，」ではなく読点「、」を使用してください。 /
+    Punctuation rule: Japanese body text should use '、' and '。' (standard Japanese punctuation)
+    instead of '，' (full-width comma) according to PASJ guidelines.
+  BODY_PUNCTUATION_PERIOD: >-
+    本文の句読点違反: 日本語の文章では全角ピリオド「．」ではなく句点「。」を使用してください。 /
+    Punctuation rule: Japanese body text should use '、' and '。' (standard Japanese punctuation)
+    instead of '．' (full-width period) according to PASJ guidelines.
+  CAPTION_CONTAINS_JAPANESE: >-
+    図表キャプション・タイトルに日本語文字が含まれています。PASJ規定により図表とその説明文は英語で記述してください。 /
+    Figure and Table captions must be written in English. Japanese characters were detected in caption.
+  FIGURE_CAPTION_MISSING_PERIOD: >-
+    図のキャプション（\caption{...}）の文末にピリオド（'.'）がありません。図キャプションはピリオドで終えてください。 /
+    Figure caption does not end with a period ('.'). PASJ guidelines require figure captions to terminate with a period.
+  ET_AL_NOT_WRAPPED: >-
+    参考文献の et al. が斜体になっていません。\textit{et al.} または \emph{et al.} を使用してください。 /
+    et al. is not wrapped in an italic command. Please use \textit{et al.} or \emph{et al.} instead of plain et al.
+  ET_AL_WITH_COMMA: >-
+    参考文献の et al. の直前に不要なカンマがあります。PASJ書式ではカンマを入れずに斜体で \textit{et al.} と記述します。 /
+    et al. is preceded by a comma, which is incorrect in PASJ references. Please remove the comma before et al.
+  DOI_CONTAINS_SPACE: >-
+    DOIのコロン直後に不要なスペースが含まれています（例: 'doi: 10.'）。スペースを削除してください。 /
+    DOI contains a space after the colon (e.g. 'doi: 10.'). Please remove the space.
+  DOI_ENDS_IN_PERIOD: >-
+    DOIの末尾に不要なピリオド（'.'）が含まれています。DOI末尾のピリオドを削除してください。 /
+    DOI ends with a period, which is incorrect. Please remove the trailing period from the DOI.
+  URL_ENDS_IN_PERIOD: >-
+    URLの末尾に不要なピリオド（'.'）が含まれています。PASJ規定によりURL末尾にはピリオドを入れないでください。 /
+    Web URL inside reference ends with a period. According to PASJ guidelines, URLs should not have trailing periods.

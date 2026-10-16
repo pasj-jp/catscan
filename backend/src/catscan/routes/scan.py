@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/scan", tags=["scan"])
 @router.post("/word")
 async def scan_word(
     file: UploadFile = File(...),
-    template: str = Form("jacow"),
+    template: str = Form("auto"),
     conference: Optional[str] = Form(None)
 ):
     """
@@ -60,7 +60,7 @@ async def scan_word(
 class LatexScanRequest(BaseModel):
     filename: str = "document.tex"
     content: str
-    template: str = "jacow"
+    template: str = "auto"
 
 
 @router.post("/latex")
@@ -69,13 +69,15 @@ async def scan_latex(req: LatexScanRequest):
     Validate a LaTeX (.tex) manuscript using the requested template checker.
     """
     try:
-        checker, _ = get_checker(doc_type="latex", template=req.template)
+        checker, effective_template = get_checker(doc_type="latex", template=req.template, file_source=req.content)
         result = checker.validate(req.content, filename=req.filename)
         if "error" in result:
             status_code = 501 if result.get("code") == "checker_not_implemented" else 400
             return JSONResponse(status_code=status_code, content=result)
 
         result["report_type"] = "latex"
+        result["detected_template"] = effective_template
+        result["template_name"] = "JACoW 英文原稿" if effective_template == "jacow" else "PASJ 和文原稿"
         report_id = ReportStore.generate_report_id(result)
         result["report_id"] = report_id
         ReportStore.save_report(result, report_id=report_id)

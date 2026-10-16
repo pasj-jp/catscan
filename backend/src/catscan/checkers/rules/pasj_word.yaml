@@ -1,0 +1,549 @@
+# =============================================================================
+#  PASJ 和文原稿 - Microsoft Word 论文排版与格式规则
+#  编辑指南：
+#    - sections: 各章节的检查规则与展示设置
+#    - elements: 各语义元素的检查项与提示文案
+#    - checks:   检查原语配置（style_contains, has_cjk, no_cjk, forbid_chars, uppercase, font, regex_match, regex_not_match, exact_text, ends_with_period_or_note）
+#    - extra_info: 报告表格列与表头（纯声明，无 HTML）
+# =============================================================================
+
+required_styles:
+  - "011) pasj-和文タイトル 英数字も含め MSPゴシック"
+  - "012) pasj-英文タイトル"
+  - "020) pasj-著者"
+  - "03) pasj-Abstract見出し"
+  - "04) pasj-章見出し"
+  - "05) pasj-節見出し"
+  - "00) pasj-本文"
+  - "20) pasj-図"
+  - "21) pasj-図タイトル1行"
+  - "30) pasj-表"
+  - "31) pasj-表タイトル1行"
+  - "061) pasj-参考文献見出し"
+  - "062) pasj-参考文献"
+
+sections:
+  # ---------------------------------------------------------------------------
+  # 1. 标题检查 (和文・英文タイトル併記)
+  # ---------------------------------------------------------------------------
+  Title:
+    title: "Title Check (和文・英文タイトル併記)"
+    anchor: "title"
+    extra_info:
+      title: "タイトル併記・書式検査結果 (Title Breakdown)"
+      headers:
+        - { label: "種別 (Type)", width: "22%" }
+        - { label: "テキスト (Text)" }
+        - { label: "スタイル (Style)", width: "22%" }
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+        - { label: "言語/大文字", width: "85px", center: true }
+        - { label: "スタイル", width: "85px", center: true }
+      columns: ["type", "text", "style", "notes", "lang_ok", "style_ok"]
+
+    elements:
+      - role: "jtitle"
+        type: "和文タイトル (Japanese Title)"
+        required: true
+        scoring_keys: ["lang_ok", "style_ok"]
+        pass_message: "適合 (14 pt ゴシック・中央揃え)"
+        missing_message: "和文タイトルが欠落しています（「011) pasj-和文タイトル」が必要）"
+        checks:
+          - check: "style_contains"
+            contains: ["和文タイトル", "011"]
+            key: "style_ok"
+            fail_message: "スタイル「011) pasj-和文タイトル」を設定してください"
+          - check: "has_cjk"
+            key: "lang_ok"
+            fail_message: "和文タイトルに日本語文字が含まれていません"
+
+      - role: "etitle"
+        type: "英文タイトル (English Title)"
+        required: true
+        scoring_keys: ["lang_ok", "style_ok"]
+        pass_message: "適合 (12 pt Times・太字・大文字)"
+        missing_message: "英文タイトルが欠落しています（和文原稿でも「012) pasj-英文タイトル」の併記が必須）"
+        checks:
+          - check: "style_contains"
+            contains: ["英文タイトル", "012"]
+            key: "style_ok"
+            fail_message: "スタイル「012) pasj-英文タイトル」を設定してください"
+          - check: "no_cjk"
+            key: "lang_ok"
+            fail_message: "英文タイトルに日本語文字が含まれています"
+          - check: "uppercase"
+            threshold: 0.7
+            allow_all_caps_style: true
+            key: "lang_ok"
+            fail_message: "英文タイトルは全て大文字（ALL CAPS）または大文字スタイルで記述してください"
+
+    rules:
+      jtitle:
+        type: "和文タイトル (Japanese Title)"
+        styles: { pasj: "011) pasj-和文タイトル 英数字も含め MSPゴシック" }
+        font_name: "ＭＳ Ｐゴシック"
+        font_size: 14.0
+        alignment: "CENTER"
+        space_before: 6.0
+        space_after: 6.0
+      etitle:
+        type: "英文タイトル (English Title)"
+        styles: { pasj: "012) pasj-英文タイトル" }
+        font_name: "Times New Roman / Times"
+        font_size: 12.0
+        alignment: "CENTER"
+        bold: true
+        all_caps: true
+        space_after: 12.0
+
+    extra_rules:
+      - "和文論文では1行目に和文タイトル、すぐ次の行に英文タイトルの両方の併記が必須です。"
+      - "和文タイトル（英数字含む）は MSPゴシック 14 pt（標準・中央揃え、段落前6 pt / 段落後6 pt）で記述します。"
+      - "英文タイトルは Times系フォント 12 pt・太字・全て大文字（ALL CAPS、物理単位の小文字や慣習上の小文字は小文字のまま）で中央揃えにします。"
+
+  # ---------------------------------------------------------------------------
+  # 2. 著者・所属チェック (和文・英文著者併記)
+  # ---------------------------------------------------------------------------
+  Authors:
+    title: "Authors Check (和文・英文著者併記)"
+    anchor: "authors"
+    extra_info:
+      title: "著者・所属表記検査結果 (Authors & Delimiter Breakdown)"
+      headers:
+        - { label: "種別 (Type)", width: "22%" }
+        - { label: "テキスト (Text)" }
+        - { label: "スタイル (Style)", width: "20%" }
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+        - { label: "区切り文字", width: "85px", center: true }
+        - { label: "スタイル", width: "85px", center: true }
+      columns: ["type", "text", "style", "notes", "delimiter_ok", "style_ok"]
+
+    elements:
+      - role: "jauthor"
+        type: "和文著者名 (Japanese Authors)"
+        required: true
+        scoring_keys: ["delimiter_ok", "style_ok"]
+        pass_message: "適合 (半角カンマ区切り・10 pt)"
+        missing_message: "和文著者名が検出されませんでした"
+        missing_text: "未検出 (Missing Japanese Authors)"
+        checks:
+          - check: "forbid_chars"
+            chars: ["，", "、"]
+            key: "delimiter_ok"
+            fail_message: "著者名の区切りに全角「，」または読点「、」が含まれています（半角カンマ＋スペース ', ' を使用）"
+          - check: "style_contains"
+            contains: ["著者", "020"]
+            key: "style_ok"
+            fail_message: "スタイル「020) pasj-著者」を設定してください"
+
+      - role: "eauthor"
+        type: "英文著者・所属 (English Authors / Affiliation)"
+        required: true
+        scoring_keys: ["delimiter_ok", "style_ok"]
+        pass_message: "適合 (10 pt Times・中央揃え)"
+        missing_message: "英文著者名・所属機関名が検出されませんでした"
+        missing_text: "未検出 (Missing English Authors)"
+        checks:
+          - check: "forbid_chars"
+            chars: ["，", "、"]
+            key: "delimiter_ok"
+            fail_message: "全角カンマ「，」または「、」が含まれています（半角 ', ' を使用）"
+          - check: "style_contains"
+            contains: ["著者", "020"]
+            key: "style_ok"
+            fail_message: "スタイル「020) pasj-著者」を設定してください"
+
+    rules:
+      jauthor:
+        type: "和文著者名 (Japanese Authors)"
+        styles: { pasj: "020) pasj-著者" }
+        font_name: "ＭＳ Ｐ明朝 / Times"
+        font_size: 10.0
+        alignment: "CENTER"
+      eauthor:
+        type: "英文著者名・所属機関名 (English Authors & Affiliations)"
+        styles: { pasj: "020) pasj-著者" }
+        font_name: "Times / Times New Roman"
+        font_size: 10.0
+        alignment: "CENTER"
+
+    extra_rules:
+      - "日本語著者名、英語著者名、英語所属機関名の順に、それぞれを改行で区切って併記します（フォントサイズ 10 pt・中央揃え）。"
+      - "著者名の区切りは日本語・英語とも半角カンマ＋半角スペース1個（', '）を使用してください（全角カンマ「，」や読点「、」は不可）。"
+      - "所属機関が複数の場合は A), B) のように半角Times系フォントで上付参照記号（「021) pasj-著者脚注上付記号」）を付与します。所属機関の所在地は不要です。"
+
+  # ---------------------------------------------------------------------------
+  # 3. 英文要旨 (Abstract)
+  # ---------------------------------------------------------------------------
+  Abstract:
+    title: "Abstract Check (英文要旨)"
+    anchor: "abstract"
+    extra_info:
+      title: "英文要旨検査結果 (Abstract Breakdown)"
+      headers:
+        - { label: "種別 (Type)", width: "22%" }
+        - { label: "テキスト抜粋 (Text)" }
+        - { label: "スタイル (Style)", width: "20%" }
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+        - { label: "判定 (Result)", width: "90px", center: true }
+      columns: ["type", "text", "style", "notes", "ok"]
+
+    elements:
+      - role: "heading"
+        type: "Abstract見出し (Heading)"
+        required: true
+        scoring_keys: ["heading_ok"]
+        pass_message: "適合 (12 pt Times 斜体)"
+        missing_message: "Abstract見出しが検出されませんでした"
+        missing_text: "未検出 (Missing Abstract Heading)"
+        checks:
+          - check: "exact_text"
+            text: "Abstract"
+            key: "heading_ok"
+            fail_message: "見出しは「Abstract」（スタイル「03) pasj-Abstract見出し」）としてください"
+          - check: "style_contains"
+            contains: ["Abstract", "03"]
+            key: "heading_ok"
+            fail_message: "見出しは「Abstract」（スタイル「03) pasj-Abstract見出し」）としてください"
+
+      - role: "body"
+        type: "Abstract本文 (English Body)"
+        required: true
+        truncate: 140
+        scoring_keys: ["lang_ok"]
+        pass_message: "適合 (英語1段落・10 pt)"
+        missing_message: "英文要旨（Abstract本文）が検出されませんでした"
+        missing_text: "未検出 (Missing English Abstract Body)"
+        checks:
+          - check: "no_cjk"
+            key: "lang_ok"
+            fail_message: "要旨（Abstract）に日本語文字が含まれています。和文原稿でも要旨は全編英語で記述してください"
+
+    rules:
+      heading:
+        type: "Abstract見出し (Abstract Heading)"
+        styles: { pasj: "03) pasj-Abstract見出し" }
+        font_name: "Times New Roman / Times"
+        font_size: 12.0
+        italic: true
+        space_before: 12.0
+      body:
+        type: "Abstract本文 (English Abstract Body)"
+        styles: { pasj: "00) pasj-本文" }
+        font_name: "Times / Times New Roman"
+        font_size: 10.0
+        alignment: "JUSTIFY"
+        first_line_indent: 10.0
+
+    extra_rules:
+      - "要旨見出しはイタリック 12 pt で「Abstract」と記述し、スタイル「03) pasj-Abstract見出し」を設定します。"
+      - "Abstract本文は改行なしの一段落のみで、英語 10 pt（スタイル「00) pasj-本文」）で記述してください。日本語文字の混入は不可です。"
+
+  # ---------------------------------------------------------------------------
+  # 4. 見出し (Headings)
+  # ---------------------------------------------------------------------------
+  Headings:
+    title: "Headings Check (章・節・項見出し)"
+    anchor: "headings"
+    empty_is_ok: true
+    extra_info:
+      title: "見出し・連番検査結果 (Headings Breakdown)"
+      headers:
+        - { label: "見出しテキスト (Heading Text)" }
+        - { label: "スタイル (Style)", width: "24%" }
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+        - { label: "連番", width: "85px", center: true }
+        - { label: "スタイル", width: "85px", center: true }
+      columns: ["text", "style", "notes", "number_ok", "style_ok"]
+
+    elements:
+      - role: "heading"
+        type: "見出し (Heading)"
+        required: false
+        scoring_keys: ["number_ok", "style_ok"]
+        pass_message: "適合"
+        checks:
+          - check: "regex_match"
+            pattern: '^\d+(?:\.\d+)*\.?\s'
+            key: "number_ok"
+            fail_message: "見出しの先頭に連番（1., 1.1 等）がありません"
+          - check: "style_contains"
+            contains: ["pasj", "見出し"]
+            key: "style_ok"
+            fail_message: "PASJ標準の見出しスタイル（04/05/06）を使用してください"
+
+    rules:
+      chapter:
+        type: "章見出し (Section / Heading 1)"
+        styles: { pasj: "04) pasj-章見出し" }
+        font_name: "ＭＳ Ｐゴシック"
+        font_size: 12.0
+        space_before: 9.0
+        space_after: 3.0
+      section:
+        type: "節見出し (Subsection / Heading 2)"
+        styles: { pasj: "05) pasj-節見出し" }
+        font_name: "ＭＳ Ｐ明朝 / Times"
+        font_size: 10.0
+        space_before: 6.0
+        space_after: 3.0
+      subsection:
+        type: "項見出し (Subsubsection / Heading 3)"
+        styles: { pasj: "06) pasj-項見出し" }
+        font_name: "ＭＳ Ｐ明朝 / Times"
+        font_size: 10.0
+        space_before: 3.0
+        space_after: 0.0
+
+    extra_rules:
+      - "各章・節・項の見出しの前に半角数字の連番（1., 1.1, 1.1.1 等）を振り、番号と見出し文字の間にはタブを挿入してください（謝辞・参考文献見出しには章番号を振りません）。"
+      - "章見出しには MSPゴシック 12 pt（「04) pasj-章見出し」）、節・項見出しには MSP明朝（英数字はTimes系）10 pt（「05) pasj-節見出し」「06) pasj-項見出し」）を使用します。"
+
+  # ---------------------------------------------------------------------------
+  # 5. 本文・句読点 (Paragraphs & Punctuation)
+  # ---------------------------------------------------------------------------
+  Paragraphs:
+    title: "Paragraphs & Punctuation Check (本文・句読点検査)"
+    anchor: "paragraphs"
+    extra_info:
+      title: "句読点検査結果 (Punctuation Breakdown)"
+      headers:
+        - { label: "検査項目 (Item)", width: "25%" }
+        - { label: "検出数 (Count)", width: "15%" }
+        - { label: "判定・説明 (Diagnostic Status)" }
+        - { label: "判定 (Result)", width: "100px", center: true }
+      columns: ["item", "count", "status", "punct_ok"]
+
+    rules:
+      body:
+        type: "本文 (Body Text)"
+        styles: { pasj: "00) pasj-本文" }
+        font_name: "ＭＳ Ｐ明朝 / Times"
+        font_size: 10.0
+        alignment: "JUSTIFY"
+        first_line_indent: 10.0
+
+    extra_rules:
+      - "本文は二段組、10 pt の MSP明朝（英数字はTimes系）で記述します（スタイル「00) pasj-本文」）。"
+      - "日本語の文章は句読点（「。」と「、」）を使って記述してください（全角カンマ「，」および全角ピリオド「．」は使用禁止）。"
+      - "数値と単位記号の間は詰めず、non-breaking space（不間断スペース）を挿入してください。"
+
+  # ---------------------------------------------------------------------------
+  # 6. 図キャプション (Figures)
+  # ---------------------------------------------------------------------------
+  Figures:
+    title: "Figures Check (図キャプション・英文表記)"
+    anchor: "figures"
+    empty_is_ok: true
+    extra_info:
+      title: "図キャプション検査結果 (Figure Captions Breakdown)"
+      headers:
+        - { label: "図キャプション (Caption Text)" }
+        - { label: "スタイル (Style)", width: "20%" }
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+        - { label: "Figure N:", width: "80px", center: true }
+        - { label: "文末(.)", width: "80px", center: true }
+        - { label: "英語表記", width: "80px", center: true }
+      columns: ["text", "style", "notes", "format_ok", "period_ok", "lang_ok"]
+
+    elements:
+      - role: "figure"
+        type: "図キャプション (Figure Caption)"
+        required: false
+        scoring_keys: ["format_ok", "period_ok", "lang_ok", "style_ok"]
+        pass_message: "適合 (英語表記・Figure N:・文末ピリオドあり)"
+        checks:
+          - check: "regex_match"
+            pattern: '^Figure[\s\xa0]*\d+\s*:'
+            key: "format_ok"
+            fail_message: "「Figure N: 」で始めてください（「Fig. N:」等の略記は不可）"
+          - check: "ends_with_period_or_note"
+            key: "period_ok"
+            fail_message: "図キャプションの文末にピリオド（.）が必要です"
+          - check: "no_cjk"
+            key: "lang_ok"
+            fail_message: "日本語文字が含まれています（図キャプションは英語のみ）"
+          - check: "style_contains"
+            contains: ["図タイトル", "21", "22", "caption"]
+            key: "style_ok"
+            fail_message: "スタイル「21) pasj-図タイトル1行」または「22) pasj-図タイトル複数行」を設定してください"
+
+    rules:
+      single:
+        type: "図タイトル1行 (Single-Line Figure Caption)"
+        styles: { pasj: "21) pasj-図タイトル1行" }
+        font_name: "Times / Times New Roman"
+        font_size: 10.0
+        alignment: "CENTER"
+        space_before: 6.0
+        space_after: 6.0
+      multi:
+        type: "図タイトル複数行 (Multi-Line Figure Caption)"
+        styles: { pasj: "22) pasj-図タイトル複数行" }
+        font_name: "Times / Times New Roman"
+        font_size: 10.0
+        alignment: "JUSTIFY"
+        space_before: 6.0
+        space_after: 6.0
+
+    extra_rules:
+      - "図およびその説明文（キャプション）は全編英語 10 pt で記述し、「Figure 1: 」のように始めてください（「Fig. 1:」等の略記は不可）。"
+      - "図キャプションの文末には必ずピリオド（.）を付けてください。"
+      - "1行に収まる場合は段の中央寄せ（「21) pasj-図タイトル1行」）、2行以上は段幅一杯の両端揃え（「22) pasj-図タイトル複数行」）とします。"
+
+  # ---------------------------------------------------------------------------
+  # 7. 表タイトル (Tables)
+  # ---------------------------------------------------------------------------
+  Tables:
+    title: "Tables Check (表タイトル・英文表記)"
+    anchor: "tables"
+    empty_is_ok: true
+    extra_info:
+      title: "表タイトル検査結果 (Table Titles Breakdown)"
+      headers:
+        - { label: "表タイトル (Table Title)" }
+        - { label: "スタイル (Style)", width: "20%" }
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+        - { label: "Table N:", width: "85px", center: true }
+        - { label: "英語表記", width: "85px", center: true }
+      columns: ["text", "style", "notes", "format_ok", "lang_ok"]
+
+    elements:
+      - role: "table"
+        type: "表タイトル (Table Title)"
+        required: false
+        scoring_keys: ["format_ok", "lang_ok", "style_ok"]
+        pass_message: "適合 (英語表記・Table N:・ピリオドなし)"
+        checks:
+          - check: "regex_match"
+            pattern: '^Table[\s\xa0]*\d+\s*:'
+            key: "format_ok"
+            fail_message: "「Table N: 」で始めてください"
+          - check: "no_cjk"
+            key: "lang_ok"
+            fail_message: "日本語文字が含まれています（表タイトルは英語のみ）"
+          - check: "style_contains"
+            contains: ["表タイトル", "31", "32", "caption"]
+            key: "style_ok"
+            fail_message: "スタイル「31) pasj-表タイトル1行」または「32) pasj-表タイトル複数行」を設定してください"
+
+    rules:
+      single:
+        type: "表タイトル1行 (Single-Line Table Title)"
+        styles: { pasj: "31) pasj-表タイトル1行" }
+        font_name: "Times / Times New Roman"
+        font_size: 10.0
+        alignment: "CENTER"
+        space_before: 6.0
+        space_after: 6.0
+      multi:
+        type: "表タイトル複数行 (Multi-Line Table Title)"
+        styles: { pasj: "32) pasj-表タイトル複数行" }
+        font_name: "Times / Times New Roman"
+        font_size: 10.0
+        alignment: "JUSTIFY"
+        space_before: 6.0
+        space_after: 6.0
+
+    extra_rules:
+      - "表およびそのタイトルは全編英語 10 pt で記述し、「Table 1: 」のように始めてください。"
+      - "表タイトルは Title Case（主要語の頭文字を大文字）を基本とし、文末のピリオドは不要です（3行以上の長文は通常文章スタイルも可）。"
+      - "1行に収まる場合は段の中央寄せ（「31) pasj-表タイトル1行」）、2行以上は両端揃え（「32) pasj-表タイトル複数行」）とします。"
+
+  # ---------------------------------------------------------------------------
+  # 8. 参考文献 (References)
+  # ---------------------------------------------------------------------------
+  References:
+    title: "References Check (参考文献)"
+    anchor: "references"
+    empty_is_ok: true
+    extra_info:
+      title: "参考文献検査結果 (References Breakdown)"
+      headers:
+        - { label: "文献テキスト (Reference Text)" }
+        - { label: "スタイル (Style)", width: "24%" }
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+        - { label: "DOI/URL", width: "85px", center: true }
+        - { label: "スタイル", width: "85px", center: true }
+      columns: ["text", "style", "notes", "doi_ok", "style_ok"]
+
+    elements:
+      - role: "reference"
+        type: "参考文献 (Reference)"
+        required: false
+        scoring_keys: ["doi_ok", "style_ok"]
+        pass_message: "適合"
+        checks:
+          - check: "regex_not_match"
+            pattern: '(?:doi:\s*10\.[^\s]+\.|https?://[^\s]+\.)\s*$'
+            key: "doi_ok"
+            fail_message: "DOI または URL の末尾に不要なピリオド（.）があります"
+          - check: "style_contains"
+            contains: ["参考文献", "pasj"]
+            key: "style_ok"
+            fail_message: "スタイル「062) pasj-参考文献」を設定してください"
+
+    rules:
+      ref_le9:
+        type: "参考文献 9件以下 (References <= 9)"
+        styles: { pasj: "062) pasj-参考文献　参照数 9件以下" }
+        font_name: "ＭＳ Ｐ明朝 / Times"
+        font_size: 9.0
+        alignment: "JUSTIFY"
+      ref_1to9:
+        type: "参考文献 10件以上で9番まで (References #1-9 of >=10)"
+        styles: { pasj: "062) pasj-参考文献　参照数10件以上で 9番まで" }
+        font_name: "ＭＳ Ｐ明朝 / Times"
+        font_size: 9.0
+        alignment: "JUSTIFY"
+      ref_10plus:
+        type: "参考文献 10番以降 (References #10+)"
+        styles: { pasj: "062) pasj-参考文献　参照番号10番以降" }
+        font_name: "ＭＳ Ｐ明朝 / Times"
+        font_size: 9.0
+        alignment: "JUSTIFY"
+
+    extra_rules:
+      - "参考文献は 9 pt（日本語はMSP明朝、英文はTimes系、URL/DOIはLucida Sans 7.5 pt）で記載し、角括弧で括った文献参照番号 [n] の後にタブを挿入します。"
+      - "参照文献数が9件以下、10件以上のうちの9番目まで、10番目以降でそれぞれ指定の「062) pasj-参考文献」スタイルを設定してください。"
+      - "DOI（doi:10.xxxx/...）や URL の最後にはピリオド（.）等を入れないでください。"
+
+  # ---------------------------------------------------------------------------
+  # 9. 用紙サイズ・余白・段組 (Margins)
+  # ---------------------------------------------------------------------------
+  Margins:
+    title: "Page Size and Margins (用紙サイズ・余白・2段組検査)"
+    anchor: "margins"
+    message: "Margins"
+    extra_info:
+      title: "セクション別余白・段組詳細 (Page Size & Margin Breakdown)"
+      headers:
+        - { label: "セクション", center: true }
+        - { label: "用紙サイズ" }
+        - { label: "余白 [上, 下, 左, 右] (mm)" }
+        - { label: "余白判定", center: true }
+        - { label: "段数 (Columns)" }
+        - { label: "段間隔 (cm)" }
+        - { label: "段組判定", center: true }
+      columns: ["loop.index", "page_size", "margins", "margins_ok", "col_number", "col_gutter", "col_ok"]
+    extra_rules:
+      - "用紙サイズは A4（幅 210 mm × 高さ 297 mm）、余白は 上 37 mm、下 19 mm、左 20 mm、右 20 mm とします。"
+      - "本文は 2段組（段幅 82.5 mm、段の間隔 5.0 mm = 0.5 cm）で設定してください。"
+
+  # ---------------------------------------------------------------------------
+  # 10. テンプレート公式スタイル (Styles)
+  # ---------------------------------------------------------------------------
+  Styles:
+    title: "PASJ Template Styles Check (公式スタイル定義検査)"
+    anchor: "styles"
+    extra_info:
+      title: "テンプレート標準スタイル組込状況 (Template Style Breakdown)"
+      headers:
+        - { label: "スタイル名 (Official PASJ Template Style Name)" }
+        - { label: "組込判定 (Status)", width: "120px", center: true }
+      columns: ["style", "style_ok"]
+    rules:
+      styles_check:
+        type: "PASJ公式テンプレート標準スタイル定義"
+        styles: { pasj: "13 Official PASJ Styles" }
+    extra_rules:
+      - "PASJ公式テンプレート（Proc_Template2026_Word.dotx）で定義された標準スタイル群が文書に正しく組み込まれているかを検査します。"

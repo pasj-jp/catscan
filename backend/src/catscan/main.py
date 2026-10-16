@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .routes.scan import router as scan_router
 from .routes.reports import router as reports_router
+from .routes.indico import router as indico_router
 
 app = FastAPI(
     title="PASJ CatScan Backend API",
@@ -20,6 +21,7 @@ app.add_middleware(
 
 app.include_router(scan_router)
 app.include_router(reports_router)
+app.include_router(indico_router)
 
 
 @app.get("/health")

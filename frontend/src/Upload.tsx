@@ -50,6 +50,9 @@ const Upload: React.FC<UploadProps> = (props) => {
                                 isAbbreviated: response.data.isabbreviated,
                                 unabbreviated: response.data.unabbreviated,
                                 issuesFound: response.data.issuesFound,
+                                detected_template: response.data.detected_template,
+                                template_name: response.data.template_name,
+                                total_references: response.data.total_references,
                             },
                         });
                     } else {
@@ -144,6 +147,9 @@ const Upload: React.FC<UploadProps> = (props) => {
                                 isAbbreviated: response.data.isabbreviated,
                                 unabbreviated: response.data.unabbreviated,
                                 issuesFound: response.data.issuesFound,
+                                detected_template: response.data.detected_template,
+                                template_name: response.data.template_name,
+                                total_references: response.data.total_references,
                             }
                         });
                         if (response.data.report_id) {

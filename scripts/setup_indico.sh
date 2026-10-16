@@ -1,0 +1,344 @@
+#!/bin/bash
+set -e
+
+# ==============================================================================
+# Indico 3.3 Automated Setup Script for AlmaLinux 9/10 / RHEL / CentOS Stream
+# ==============================================================================
+# Usage:
+#   sudo ./scripts/setup_indico.sh
+#
+# Configurable Environment Variables:
+#   SERVER_NAME       : Server domain or IP (default: detected primary IP or localhost)
+#   INDICO_BASE_URL   : Full base URL (default: http://${SERVER_NAME})
+#   SUPPORT_EMAIL     : Admin support email (default: admin@example.com)
+#   DEFAULT_TIMEZONE  : Default timezone (default: Asia/Tokyo)
+#   DEFAULT_LOCALE    : Default locale (default: en_GB)
+#   SECRET_KEY        : Indico Flask secret key (default: auto-generated 64-char hex)
+#   ENABLE_MAILPIT    : Enable local mock SMTP & Web UI (default: true)
+#   MAILPIT_UI_PORT   : Mailpit Web UI port (default: 8025)
+#   MAILPIT_SMTP_PORT : Mailpit SMTP port (default: 1025)
+# ==============================================================================
+
+# Ensure script is run as root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "ERROR: This script must be run as root (use sudo)." >&2
+    exit 1
+fi
+
+PRIMARY_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' || hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")
+SERVER_NAME="${SERVER_NAME:-$PRIMARY_IP}"
+INDICO_BASE_URL="${INDICO_BASE_URL:-http://$SERVER_NAME}"
+SUPPORT_EMAIL="${SUPPORT_EMAIL:-admin@example.com}"
+DEFAULT_TIMEZONE="${DEFAULT_TIMEZONE:-Asia/Tokyo}"
+DEFAULT_LOCALE="${DEFAULT_LOCALE:-en_GB}"
+SECRET_KEY="${SECRET_KEY:-$(openssl rand -hex 32)}"
+ENABLE_MAILPIT="${ENABLE_MAILPIT:-true}"
+MAILPIT_UI_PORT="${MAILPIT_UI_PORT:-8025}"
+MAILPIT_SMTP_PORT="${MAILPIT_SMTP_PORT:-1025}"
+
+INDICO_DIR="/opt/indico"
+INDICO_USER="indico"
+INDICO_GROUP="nginx"
+
+echo "======================================================================"
+echo "Starting Indico Setup"
+echo "  Base URL       : ${INDICO_BASE_URL}"
+echo "  Support Email  : ${SUPPORT_EMAIL}"
+echo "  Timezone       : ${DEFAULT_TIMEZONE}"
+echo "  Target Dir     : ${INDICO_DIR}"
+echo "======================================================================"
+
+echo "=== 1. Installing System Dependencies ==="
+dnf install -y \
+    postgresql-server postgresql-contrib libpq-devel \
+    valkey nginx python3-devel libffi-devel libyaml-devel \
+    libxslt-devel libxml2-devel pango findutils tar make pcre2-devel gcc
+
+echo "=== 2. Initializing & Starting Database and Cache Services ==="
+if [ ! -d "/var/lib/pgsql/data/base" ]; then
+    echo "Initializing PostgreSQL cluster..."
+    postgresql-setup --initdb
+fi
+systemctl enable --now postgresql valkey
+
+echo "=== 3. Creating Indico PostgreSQL Database & User ==="
+if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='${INDICO_USER}'" | grep -q 1; then
+    sudo -u postgres createuser "${INDICO_USER}"
+fi
+
+if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "indico"; then
+    sudo -u postgres createdb -O "${INDICO_USER}" indico
+fi
+
+sudo -u postgres psql -d indico -c "CREATE EXTENSION IF NOT EXISTS unaccent; CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+echo "=== 4. Setting up Indico System User & Directories ==="
+if ! id -u "${INDICO_USER}" >/dev/null 2>&1; then
+    useradd -rm -g "${INDICO_GROUP}" -d "${INDICO_DIR}" -s /bin/bash "${INDICO_USER}"
+fi
+usermod -a -G "${INDICO_GROUP}" "${INDICO_USER}" || true
+usermod -a -G "${INDICO_USER}" "${INDICO_GROUP}" || true
+
+mkdir -p "${INDICO_DIR}"/{archive,cache,etc,log,log/nginx,tmp,web}
+chown -R "${INDICO_USER}:${INDICO_GROUP}" "${INDICO_DIR}"
+chmod 755 "${INDICO_DIR}"
+chmod 750 "${INDICO_DIR}"/{archive,cache,etc,log,tmp,web}
+
+echo "=== 5. Creating Python Virtual Environment & Installing Indico ==="
+if [ ! -d "${INDICO_DIR}/.venv" ]; then
+    sudo -u "${INDICO_USER}" python3 -m venv --upgrade-deps --prompt indico "${INDICO_DIR}/.venv"
+fi
+
+sudo -u "${INDICO_USER}" "${INDICO_DIR}/.venv/bin/pip install" --upgrade pip
+sudo -u "${INDICO_USER}" "${INDICO_DIR}/.venv/bin/pip install" wheel uwsgi indico
+
+if [ "${ENABLE_MAILPIT}" = "true" ]; then
+    if ! command -v mailpit >/dev/null 2>&1; then
+        echo "Installing Mailpit binary..."
+        if curl -sL https://raw.githubusercontent.com/axllent/mailpit/develop/install.sh | bash; then
+            echo "Mailpit installed successfully."
+        else
+            echo "Falling back to direct release tarball download..."
+            ARCH=$(uname -m)
+            [ "$ARCH" = "x86_64" ] && MP_ARCH="amd64" || MP_ARCH="arm64"
+            curl -sL "https://github.com/axllent/mailpit/releases/latest/download/mailpit-linux-${MP_ARCH}.tar.gz" | tar -xz -C /usr/local/bin mailpit
+            chmod +x /usr/local/bin/mailpit
+        fi
+    fi
+fi
+
+echo "=== 6. Generating Indico Configuration (/opt/indico/etc/indico.conf) ==="
+cat << EOF > "${INDICO_DIR}/etc/indico.conf"
+# Indico Configuration File
+# Auto-generated by scripts/setup_indico.sh
+
+# General settings
+SQLALCHEMY_DATABASE_URI = 'postgresql:///indico'
+SECRET_KEY = '${SECRET_KEY}'
+BASE_URL = '${INDICO_BASE_URL}'
+CELERY_BROKER = 'redis://127.0.0.1:6379/1'
+REDIS_CACHE_URL = 'redis://127.0.0.1:6379/0'
+DEFAULT_TIMEZONE = '${DEFAULT_TIMEZONE}'
+DEFAULT_LOCALE = '${DEFAULT_LOCALE}'
+ENABLE_ROOMBOOKING = False
+CACHE_DIR = '${INDICO_DIR}/cache'
+TEMP_DIR = '${INDICO_DIR}/tmp'
+LOG_DIR = '${INDICO_DIR}/log'
+LOCAL_PASSWORD_MIN_LENGTH = 8
+CSP_ENABLED = True
+STORAGE_BACKENDS = {'default': 'fs:${INDICO_DIR}/archive'}
+ATTACHMENT_STORAGE = 'default'
+STATIC_FILE_METHOD = ('xaccelredirect', {'${INDICO_DIR}': '/.xsf/indico'})
+USE_PROXY = True
+
+# Email settings
+SMTP_SERVER = ('127.0.0.1', 1025)
+SMTP_USE_TLS = False
+SMTP_LOGIN = None
+SMTP_PASSWORD = None
+SUPPORT_EMAIL = '${SUPPORT_EMAIL}'
+PUBLIC_SUPPORT_EMAIL = '${SUPPORT_EMAIL}'
+NO_REPLY_EMAIL = 'noreply@${SERVER_NAME}'
+EOF
+
+chown "${INDICO_USER}:${INDICO_GROUP}" "${INDICO_DIR}/etc/indico.conf"
+chmod 640 "${INDICO_DIR}/etc/indico.conf"
+
+echo "=== 7. Symlinking Static Assets & Initializing WSGI Entrypoint ==="
+PACKAGE_ROOT=$(sudo -u "${INDICO_USER}" "${INDICO_DIR}/.venv/bin/python" -c "import os, indico; print(os.path.dirname(indico.__file__))")
+if [ ! -f "${INDICO_DIR}/etc/logging.yaml" ]; then
+    sudo -u "${INDICO_USER}" cp "${PACKAGE_ROOT}/logging.yaml.sample" "${INDICO_DIR}/etc/logging.yaml"
+fi
+sudo -u "${INDICO_USER}" ln -sfn "${PACKAGE_ROOT}/web/static" "${INDICO_DIR}/web/static"
+sudo -u "${INDICO_USER}" cp -f "${PACKAGE_ROOT}/web/indico.wsgi" "${INDICO_DIR}/web/indico.wsgi"
+sudo -u "${INDICO_USER}" ln -sfn "${INDICO_DIR}/etc/indico.conf" "${INDICO_DIR}/.indico.conf"
+
+echo "=== 8. Initializing Database Schema (indico db prepare) ==="
+# Only run prepare if alembic_version table doesn't exist
+if ! sudo -u postgres psql -d indico -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version'" | grep -q 1; then
+    echo "Preparing fresh Indico database tables..."
+    sudo -u "${INDICO_USER}" env INDICO_CONFIG="${INDICO_DIR}/etc/indico.conf" "${INDICO_DIR}/.venv/bin/indico" db prepare
+else
+    echo "Database tables already exist, running upgrade if needed..."
+    sudo -u "${INDICO_USER}" env INDICO_CONFIG="${INDICO_DIR}/etc/indico.conf" "${INDICO_DIR}/.venv/bin/indico" db upgrade || true
+fi
+
+echo "=== 9. Creating uWSGI & Systemd Service Configurations ==="
+cat << 'EOF' > /etc/uwsgi-indico.ini
+[uwsgi]
+uid = indico
+gid = nginx
+umask = 027
+
+processes = 4
+enable-threads = true
+chmod-socket = 770
+socket = /opt/indico/web/uwsgi.sock
+stats = /opt/indico/web/uwsgi-stats.sock
+protocol = uwsgi
+
+master = true
+auto-procname = true
+procname-prefix-spaced = indico
+disable-logging = true
+
+single-interpreter = true
+
+touch-reload = /opt/indico/web/indico.wsgi
+wsgi-file = /opt/indico/web/indico.wsgi
+virtualenv = /opt/indico/.venv
+
+vacuum = true
+buffer-size = 20480
+memory-report = true
+max-requests = 2500
+harakiri = 900
+harakiri-verbose = true
+reload-on-rss = 2048
+evil-reload-on-rss = 8192
+EOF
+
+cat << 'EOF' > /etc/systemd/system/indico-uwsgi.service
+[Unit]
+Description=Indico uWSGI Service
+After=network.target postgresql.service valkey.service
+
+[Service]
+ExecStart=/opt/indico/.venv/bin/uwsgi --ini /etc/uwsgi-indico.ini
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+SyslogIdentifier=indico-uwsgi
+User=indico
+Group=nginx
+UMask=0027
+Type=notify
+NotifyAccess=all
+KillMode=mixed
+KillSignal=SIGQUIT
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat << 'EOF' > /etc/systemd/system/indico-celery.service
+[Unit]
+Description=Indico Celery Worker Service
+After=network.target postgresql.service valkey.service
+
+[Service]
+ExecStart=/opt/indico/.venv/bin/indico celery worker -B
+Restart=always
+SyslogIdentifier=indico-celery
+User=indico
+Group=nginx
+UMask=0027
+Type=simple
+KillMode=mixed
+TimeoutStopSec=300
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+if [ "${ENABLE_MAILPIT}" = "true" ]; then
+cat << EOF > /etc/systemd/system/mailpit.service
+[Unit]
+Description=Mailpit Mock SMTP & Web UI
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mailpit --smtp 0.0.0.0:${MAILPIT_SMTP_PORT} --listen 0.0.0.0:${MAILPIT_UI_PORT}
+Restart=always
+SyslogIdentifier=mailpit
+User=indico
+Group=nginx
+
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
+
+echo "=== 10. Configuring Nginx Reverse Proxy for Indico ==="
+cat << 'EOF' > /etc/nginx/conf.d/indico.conf
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    access_log /opt/indico/log/nginx/access.log combined;
+    error_log /opt/indico/log/nginx/error.log;
+
+    location /.xsf/indico/ {
+        internal;
+        alias /opt/indico/;
+        add_header Content-Security-Policy $upstream_http_content_security_policy;
+        add_header Content-Security-Policy-Report-Only $upstream_http_content_security_policy_report_only;
+        add_header Reporting-Endpoints $upstream_http_reporting_endpoints;
+    }
+
+    location ~ ^/(images|fonts)(.*)/(.+?)(__v[0-9a-f]+)?\.([^.]+)$ {
+        alias /opt/indico/web/static/$1$2/$3.$5;
+        access_log off;
+    }
+
+    location ~ ^/(css|dist|images|fonts)/(.*)$ {
+        alias /opt/indico/web/static/$1/$2;
+        access_log off;
+    }
+
+    location /robots.txt {
+        alias /opt/indico/web/static/robots.txt;
+        access_log off;
+    }
+
+    location / {
+        root /var/empty/nginx;
+        include /etc/nginx/uwsgi_params;
+        uwsgi_pass unix:/opt/indico/web/uwsgi.sock;
+        uwsgi_param UWSGI_SCHEME $scheme;
+        uwsgi_read_timeout 15m;
+        uwsgi_buffers 32 32k;
+        uwsgi_busy_buffers_size 128k;
+        uwsgi_hide_header X-Sendfile;
+        client_max_body_size 1G;
+    }
+}
+EOF
+
+echo "=== 11. Configuring SELinux (if enabled) ==="
+if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != "Disabled" ]; then
+    echo "SELinux is active, configuring booleans..."
+    setsebool -P httpd_can_network_connect 1 || true
+    setsebool -P httpd_read_user_content 1 || true
+fi
+
+echo "=== 12. Reloading Systemd & Starting Services ==="
+systemctl daemon-reload
+systemctl enable --now indico-uwsgi indico-celery
+if [ "${ENABLE_MAILPIT}" = "true" ]; then
+    systemctl enable --now mailpit
+fi
+
+nginx -t
+systemctl enable --now nginx
+systemctl reload nginx
+
+echo ""
+echo "======================================================================"
+echo "🎉 Indico 3.3 Setup Completed Successfully!"
+echo "======================================================================"
+echo "  Indico Web UI  : ${INDICO_BASE_URL}"
+if [ "${ENABLE_MAILPIT}" = "true" ]; then
+    echo "  Mailpit Web UI : http://${SERVER_NAME}:${MAILPIT_UI_PORT}"
+    echo "  Mailpit SMTP   : ${SERVER_NAME}:${MAILPIT_SMTP_PORT}"
+fi
+echo ""
+echo "Next Steps:"
+echo "1. Create initial admin user:"
+echo "   sudo -u indico env INDICO_CONFIG=/opt/indico/etc/indico.conf /opt/indico/.venv/bin/indico user create"
+echo ""
+echo "2. Populate test conference & benchmark papers (optional):"
+echo "   sudo -u indico env INDICO_CONFIG=/opt/indico/etc/indico.conf /opt/indico/.venv/bin/python scripts/populate_indico_papers.py"
+echo "======================================================================"

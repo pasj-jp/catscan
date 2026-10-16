@@ -1,5 +1,5 @@
 import React from "react";
-import {Rule} from "./Section";
+import {Rule, getColumnHeader, getRuleAttributes} from "./Section";
 import {useLanguage} from "../i18n";
 
 type TableHeadersProps = {
@@ -7,39 +7,28 @@ type TableHeadersProps = {
     rules?: { [key: string]: Rule; }
 };
 
-const sentenceCase = (str: string) => {
-    if ((str === null) || (str === ''))
-        return '';
-    else
-        str = str.toString();
-
-    return str.replace(/\w\S*/g,
-        function (txt) {
-            return txt.charAt(0).toUpperCase() +
-                txt.substring(1).toLowerCase();
-        });
-}
-
 const TableHeader: React.FC<TableHeadersProps> = (props) => {
     const { language } = useLanguage();
-    const firstRule = props.rules && Object.entries(props.rules)[0][1];
+    const ruleAttrs = getRuleAttributes(props.rules);
+    const hasRules = ruleAttrs.length > 0 || Boolean(props.rules && Object.keys(props.rules).length > 0);
+
     return (<>
-        {firstRule &&
-            <thead>
+        {hasRules && !props.headers &&
+            <thead className="thead-light">
             <tr>
-                <th rowSpan={2}>{language === 'ja' ? '本文テキスト' : 'Text'}</th>
-                <th colSpan={9}>{language === 'ja' ? 'スタイル検査項目' : 'Style Attributes'}</th>
+                <th rowSpan={2} className="align-middle">{language === 'ja' ? '対象テキスト (Text)' : 'Text'}</th>
+                <th colSpan={ruleAttrs.length + 2} className="text-center">{language === 'ja' ? 'スタイル・フォント属性検査 (Style Attributes)' : 'Style Attributes'}</th>
             </tr>
             <tr>
-                <th>{language === 'ja' ? 'スタイル名' : 'Text Style Name'}</th>
-                {Object.keys(firstRule).map((rule) => {
-                    return ['type', 'styles'].indexOf(rule) === -1 ? <th key={rule}>{sentenceCase(rule.replace("_", " "))}</th> : null;
+                <th>{language === 'ja' ? '設定スタイル名 (Style Name)' : 'Text Style Name'}</th>
+                {ruleAttrs.map((rule) => {
+                    return <th key={rule}>{getColumnHeader(rule, language)}</th>;
                 })}
-                <th>{language === 'ja' ? '判定' : 'Ok'}</th>
+                <th className="text-center" style={{ width: '90px' }}>{language === 'ja' ? '判定' : 'Ok'}</th>
             </tr>
             </thead>
         }
-        {(typeof props.headers === 'string') && <thead dangerouslySetInnerHTML={{__html: props.headers}}></thead>}
+        {(typeof props.headers === 'string') && <thead className="thead-light" dangerouslySetInnerHTML={{__html: props.headers}}></thead>}
     </>);
 }
 

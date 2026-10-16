@@ -1,0 +1,216 @@
+# =============================================================================
+#  JACoW Standard Word Paper Rules (Microsoft Word .docx)
+# =============================================================================
+
+required_styles:
+  - "JACoW_Abstract_Heading"
+  - "JACoW_Author List"
+  - "JACoW_Body Text Indent"
+  - "JACoW_Bulleted List"
+  - "JACoW_Numbered list"
+  - "JACoW_Paper Title"
+  - "JACoW_Reference #10 onwards"
+  - "JACoW_Reference #1-9 when >= 10 Refs"
+  - "JACoW_Reference when <= 9 Refs"
+  - "JACoW_Reference Italics"
+  - "JACoW_Reference url_doi"
+  - "JACoW_Third-level Heading"
+  - "JACoW_Section Heading"
+  - "JACoW_Subsection Heading"
+
+sections:
+  Title:
+    title: "Title"
+    anchor: "title"
+    extra_info:
+      title: "Title Breakdown"
+      columns: ["text", "style", "font_size", "alignment", "bold", "case_ok", "style_ok"]
+    rules:
+      normal:
+        type: "Paper Title"
+        styles:
+          jacow: "JACoW_Paper Title"
+          normal: "Paper Title"
+        alignment: "CENTER"
+        font_size: 14.0
+        space_before: 0.0
+        space_after: 3.0
+        bold: true
+        italic: null
+    extra_rules:
+      - "Case: Title should contain greater than 70% of CAPITAL Letters, can’t be simple Title Case."
+
+  Authors:
+    title: "Authors"
+    anchor: "authors"
+    extra_info:
+      title: "Author Breakdown"
+      columns: ["text", "style", "font_size", "alignment", "space_before", "space_after", "style_ok"]
+    rules:
+      normal:
+        type: "Author List"
+        styles:
+          jacow: "JACoW_Author List"
+          normal: "Author List"
+        alignment: "CENTER"
+        font_size: 12.0
+        space_before: 9.0
+        space_after: 12.0
+        bold: false
+        italic: false
+    extra_rules:
+      - "Case: UPPER and lowercase"
+
+  Abstract:
+    title: "Abstract Heading"
+    anchor: "abstract submission"
+    extra_info:
+      title: "Abstract Breakdown"
+      columns: ["text", "style", "font_size", "italic", "space_before", "space_after", "style_ok"]
+    rules:
+      normal:
+        type: "Abstract Heading"
+        styles:
+          jacow: "JACoW_Abstract_Heading"
+          normal: "Abstract_Heading"
+        font_size: 12.0
+        space_before: 0.0
+        space_after: 3.0
+        italic: true
+    extra_rules:
+      - "Text must be <b>Abstract</b>"
+
+  Headings:
+    title: "Headings"
+    anchor: "headings"
+    extra_info:
+      title: "Heading Breakdown"
+      columns: ["text", "style", "font_size", "alignment", "bold", "italic", "style_ok"]
+    rules:
+      Section:
+        type: "Section Heading"
+        styles:
+          jacow: "JACoW_Section Heading"
+          normal: "Section Heading"
+        alignment: "CENTER"
+        font_size: 12.0
+        space_before: 9.0
+        space_after: 3.0
+        bold: true
+        case: "UPPER CASE"
+      Subsection:
+        type: "Subsection Heading"
+        styles:
+          jacow: "JACoW_Subsection Heading"
+          normal: "Subsection Heading"
+        font_size: 12.0
+        space_before: 6.0
+        space_after: 3.0
+        italic: true
+        case: "Initial Caps"
+      Third:
+        type: "Third Level Heading"
+        styles:
+          jacow: "JACoW_Third - Level Heading"
+          normal: "Third - Level Heading"
+        font_size: 10.0
+        space_before: 6.0
+        space_after: 0.0
+        bold: true
+        case: "Initial Caps"
+
+  Paragraphs:
+    title: "Paragraphs"
+    anchor: "paragraphs"
+    extra_info:
+      title: "Paragraph Breakdown"
+      columns: ["text", "style", "font_size", "alignment", "first_line_indent", "style_ok"]
+    rules:
+      normal:
+        styles:
+          jacow: "JACoW_Body Text Indent"
+          normal: "Body Text Indent"
+        alignment: "JUSTIFY"
+        font_size: 10.0
+        space_before: 0.0
+        space_after: 0.0
+        first_line_indent: 9.35
+
+  Figures:
+    title: "Figures"
+    anchor: "figures"
+    extra_info:
+      title: "Figure Breakdown"
+      columns: ["text", "style", "font_size", "alignment", "style_ok"]
+    rules:
+      SingleLine:
+        type: "Figure - Single Line"
+        styles:
+          jacow: "Figure Caption"
+          normal: "Caption"
+        alignment: "CENTER"
+        font_size: 10.0
+        space_before: 3.0
+      MultiLine:
+        type: "Figure - Multi Line"
+        styles:
+          jacow: "Figure Caption Multi Line"
+        alignment: "JUSTIFY"
+        font_size: 10.0
+        space_before: 3.0
+    extra_rules:
+      - "Figure captions must be directly below the figure"
+      - "Figure must be numbered in the order they are referred to in the main text."
+      - "Figure numbers must be unique and not duplicated, or skip numbers in the series."
+      - "Figure Captions 1 line long must be “centred”. Figure captions 2 or more lines must be “justified”."
+      - "Figure captions and figures are not to be indented."
+
+  Tables:
+    title: "Tables"
+    anchor: "tables"
+    extra_info:
+      title: "Table Breakdown"
+      columns: ["text", "style", "font_size", "alignment", "style_ok"]
+    rules:
+      SingleLine:
+        type: "Table - Single Line"
+        styles:
+          jacow: "Table Caption"
+        alignment: "CENTER"
+        font_size: 10.0
+        space_after: 3.0
+      MultiLine:
+        type: "Table - Multi Line"
+        styles:
+          jacow: "Table Caption Multi Line"
+        alignment: "JUSTIFY"
+        font_size: 10.0
+        space_after: 3.0
+
+  Styles:
+    title: "JACoW Styles"
+    anchor: "styles"
+    extra_info:
+      title: "Style Breakdown"
+      headers:
+        - { label: "Style" }
+        - { label: "Embedded in Document" }
+      columns: ["style", "style_ok"]
+    extra_rules:
+      - "The latest JACoW Template must be used. Standard JACoW Styles must be embedded in the document."
+
+  Margins:
+    title: "Page Size and Margins"
+    anchor: "margins"
+    extra_info:
+      title: "Style Breakdown"
+      headers:
+        - { label: "Section" }
+        - { label: "Page Size" }
+        - { label: "Margins", colspan: 2 }
+        - { label: "Columns" }
+        - { label: "Column Gutter (cm)", colspan: 2 }
+      columns: ["loop.index", "page_size", "margins", "margins_ok", "col_number", "col_gutter", "col_ok"]
+    extra_rules:
+      - "Documents MUST be based on A4 or US Letter."
+      - "Check gutter setting (Space between columns), for all section with more than 1 column, should be 0.51cm."

@@ -13,25 +13,37 @@ type ExtraInfoProps = {
 }
 
 const ExtraInfo: React.FC<ExtraInfoProps> = (props) => {
-    const isMulti = (props.extra_info && typeof props.extra_info !== 'string' && props.extra_info.multi) || false;
+    const isMulti = Boolean(
+        props.extra_info &&
+        typeof props.extra_info !== 'string' &&
+        props.extra_info.multi &&
+        Array.isArray(props.details) &&
+        props.details.length > 0 &&
+        Array.isArray(props.details[0])
+    );
+
     return <>
         {props.extra_info && typeof props.extra_info === 'string' &&
-            <div className="extra-jacow-info" dangerouslySetInnerHTML={{__html: props.extra_info}}></div>}
+            <div className="extra-jacow-info p-3" dangerouslySetInnerHTML={{__html: props.extra_info}}></div>}
 
         {props.extra_info && typeof props.extra_info !== 'string' && props.extra_info.title && (!props.show_total || props.details.length > 0) &&
-            <details open={props.ok !== true} className={`details-jacow`}>
-                <summary className="details-summary-jacow">{props.extra_info.title} for {props.title}</summary>
-                {isMulti ?
-                    <div className={"mt-3"}><TableMulti data={props.details} columns={props.extra_info.columns}
-                                                        args={props.args} headers={props.extra_info.headers}/></div>
-                    :
-                    <div className={"mt-3"}><Table data={props.details} columns={props.extra_info.columns}
-                                                   args={props.args} headers={props.extra_info.headers}/></div>
-                }
+            <details open={props.ok !== true} className="details-jacow">
+                <summary className="details-summary-jacow font-weight-bold">
+                    <i className="fas fa-table mr-2 text-primary"></i>
+                    {props.extra_info.title}
+                </summary>
+                <div className="mt-2">
+                    {isMulti ?
+                        <TableMulti data={props.details} columns={props.extra_info.columns}
+                                    args={props.args} headers={props.extra_info.headers}/>
+                        :
+                        <Table data={props.details} columns={props.extra_info.columns}
+                               args={props.args} headers={props.extra_info.headers}/>
+                    }
+                </div>
             </details>
         }
-    </>
-}
-
+    </>;
+};
 
 export default ExtraInfo;

@@ -1,0 +1,49 @@
+\documentclass{article}
+\usepackage{url}
+
+\begin{document}
+
+% Issue 1: Missing \jtitle (only \title provided)
+\title{STUDY OF BEAM COMMISSIONING WITH VARIOUS ISSUES}
+
+% Issue 2: Author delimiter uses Japanese punctuation '、' instead of ', '
+\jauthor{加速太郎、粒子花子}
+
+% Issue 3: Missing English \author block
+
+% Issue 4: Abstract contains Japanese text (must be English only)
+\Abstract{本研究では電子蓄積リングのビーム軌道補正手法について報告する。This abstract contains Japanese characters.}
+
+\maketitle
+
+% Issue 5: Japanese body uses full-width '，' and '．' instead of '、' and '。'
+\section{実験概要}
+本実験ではビームコミッショニングを実施した，ビーム電流値は安定しており．設計通りの性能を確認した．
+
+% Issue 6: Figure caption in Japanese and missing trailing period
+\begin{figure}[htb]
+\caption{測定されたビームプロファイルのグラフ}
+\end{figure}
+
+% Issue 7: Table caption in Japanese
+\begin{table}[htb]
+\caption{測定パラメータの一覧表}
+\end{table}
+
+\begin{thebibliography}{9}
+
+% Issue 8: et al. not wrapped in italics and preceded by comma
+\bibitem{pasj_bad_1}
+加速太郎, et al., ``軌道測定'', 2021.
+
+% Issue 9: DOI ends with trailing period
+\bibitem{pasj_bad_2}
+T. Beam, ``RF Cavities'', \url{doi:10.18429/JACoW-PASJ2022-002.}
+
+% Issue 10: URL ends with trailing period
+\bibitem{pasj_bad_3}
+PASJ Office, \url{https://www.pasj.jp/guide.}
+
+\end{thebibliography}
+
+\end{document}
