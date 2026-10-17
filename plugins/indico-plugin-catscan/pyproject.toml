@@ -1,0 +1,28 @@
+[project]
+name = "indico-plugin-catscan"
+version = "0.1.0"
+description = "Indico plugin for CatScan automated paper format validation"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "CatScan Team" }]
+classifiers = [
+    "Environment :: Plugins",
+    "Environment :: Web Environment",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "indico>=3.3",
+    "requests",
+]
+
+[project.entry-points."indico.plugins"]
+catscan = "indico_catscan.plugin:CatScanPlugin"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["indico_catscan*"]

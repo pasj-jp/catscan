@@ -57,7 +57,10 @@ ehthumbs.db
 /backend/data/reports/*.json
 !/backend/data/reports/.gitkeep
 
-# Temporary files.
-*.tmp
-*.temp
+# Plugins build artifacts and cache
+/plugins/**/__pycache__/
+/plugins/**/*.egg-info/
+/plugins/**/build/
+/plugins/**/dist/
+
 
