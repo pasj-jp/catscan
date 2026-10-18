@@ -18,15 +18,20 @@ An official Indico plugin that seamlessly bridges **Indico Paper Editing** with 
 Inside the Indico virtual environment (e.g. `/opt/indico/.venv`):
 
 ```bash
-# 1. Install plugin in development/editable mode
-sudo -u indico /opt/indico/.venv/bin/pip install -e /opt/catscan/plugins/indico-plugin-catscan
+# 1. Install plugin into Indico's virtual environment:
+# Option A (Remote install directly from GitHub monorepo):
+pip install "git+https://github.com/<owner>/catscan.git#subdirectory=plugins/indico-plugin-catscan"
+
+# Option B (Local editable/development mode):
+pip install -e /path/to/catscan/plugins/indico-plugin-catscan
 
 # 2. Enable the plugin in /opt/indico/etc/indico.conf
-# Add 'catscan' to PLUGINS:
-# PLUGINS = {'catscan'}
+# Add 'catscan' to PLUGINS set:
+PLUGINS = {'catscan'}
 
-# 3. Restart Indico uWSGI and Celery
-sudo systemctl restart indico-uwsgi indico-celery
+# 3. Reload Indico uWSGI and Celery
+touch ~/web/indico.wsgi
+sudo systemctl restart indico-celery
 ```
 
 ---

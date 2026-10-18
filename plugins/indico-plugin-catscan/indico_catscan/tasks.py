@@ -2,7 +2,7 @@ import logging
 import requests
 from indico.core.celery import celery
 
-logger = logging.getLogger('indico.plugin.catscan')
+logger = logging.getLogger(__name__)
 
 
 @celery.task(name='catscan.trigger_scan', bind=True, max_retries=3, default_retry_delay=10)

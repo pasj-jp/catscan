@@ -8,12 +8,13 @@ from indico.core import signals
 from indico.core.plugins import IndicoPlugin
 from indico.modules.events.editing.models.editable import EditableType
 from indico.modules.events.editing.models.revisions import EditingRevision, RevisionType
-from indico.util.i18n import _
 from indico.web.forms.base import IndicoForm
 from wtforms.fields import BooleanField, StringField
 from wtforms.validators import DataRequired
 
-logger = logging.getLogger('indico.plugin.catscan')
+from indico_catscan import _
+
+logger = logging.getLogger(__name__)
 
 
 class SettingsForm(IndicoForm):
