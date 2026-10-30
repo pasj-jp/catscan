@@ -1,20 +1,15 @@
-import os
-import pytest
-from catscan.checkers.factory import get_checker
-from catscan.storage.report_store import ReportStore
-from catscan.main import app
-from starlette.testclient import TestClient
+from .conftest import EXAMPLE_DIR, load_example
+from catscan.checkers.registry import get_checker
+from catscan.services import reports
 
-
-SAMPLE_DOC = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../example/JACoW_MSWord_Style_Guide.docx")
-)
+SAMPLE_DOC = EXAMPLE_DIR / "JACoW_MSWord_Style_Guide.docx"
 
 
 def test_jacow_word_checker_direct():
-    assert os.path.exists(SAMPLE_DOC), f"Sample document not found at {SAMPLE_DOC}"
-    checker, _ = get_checker(doc_type="word", template="jacow")
-    result = checker.validate(SAMPLE_DOC, filename="JACoW_MSWord_Style_Guide.docx")
+    assert SAMPLE_DOC.is_file(), f"Sample document not found at {SAMPLE_DOC}"
+    checker = get_checker("jacow", "word")
+    data = load_example("JACoW_MSWord_Style_Guide.docx")
+    result = checker.check(data, filename="JACoW_MSWord_Style_Guide.docx")
 
     assert "error" not in result
     assert "scores" in result
@@ -27,18 +22,16 @@ def test_jacow_word_checker_direct():
     assert total[0] > 0  # success count > 0
 
     # Test report persistence
-    report_id = ReportStore.save_report(result)
+    report_id = reports.save(result)
     assert report_id is not None
-    retrieved = ReportStore.get_report(report_id)
+    retrieved = reports.load(report_id)
     assert retrieved is not None
     assert retrieved["filename"] == result["filename"]
 
 
-def test_api_scan_word_upload():
-    client = TestClient(app)
-
+def test_api_scan_word_upload(client):
     # Health check
-    res = client.get("/health")
+    res = client.get("/api/health")
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
 
@@ -62,14 +55,8 @@ def test_api_scan_word_upload():
     assert get_res.status_code == 200
     assert get_res.json()["report_id"] == report_id
 
-    # Retrieve via legacy POST /word {"results": id}
-    legacy_res = client.post("/word", json={"results": report_id})
-    assert legacy_res.status_code == 200
-    assert legacy_res.json()["report_id"] == report_id
 
-
-def test_api_scan_word_upload_pasj():
-    client = TestClient(app)
+def test_api_scan_word_upload_pasj(client):
     with open(SAMPLE_DOC, "rb") as f:
         res = client.post(
             "/api/scan/word",
@@ -82,5 +69,3 @@ def test_api_scan_word_upload_pasj():
     assert data["template_name"] == "PASJ 和文原稿"
     assert "scores" in data
     assert "report_id" in data
-
-

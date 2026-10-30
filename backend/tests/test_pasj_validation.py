@@ -1,14 +1,12 @@
-import os
 import pytest
-from starlette.testclient import TestClient
 
-from catscan.main import app
-from catscan.checkers.factory import get_checker, detect_template, detect_latex_template
+from .conftest import EXAMPLE_DIR, load_example
+from catscan.checkers.registry import get_checker, detect_template, detect_latex_template
 from catscan.checkers.pasj.word_checker import PasjWordChecker
-from catscan.checkers.pasj.latex_checker import PasjLatexChecker
+from catscan.checkers.latex_engine import RuleBasedLatexChecker
 
-SAMPLE_PASJ_DOCX = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../example/PASJ_Sample_Paper.docx"))
-SAMPLE_PASJ_TEX = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../example/PASJ_Sample_Paper.tex"))
+SAMPLE_PASJ_DOCX = EXAMPLE_DIR / "PASJ_Sample_Paper.docx"
+SAMPLE_PASJ_TEX = EXAMPLE_DIR / "PASJ_Sample_Paper.tex"
 
 INVALID_PASJ_TEX = r"""
 \documentclass{article}
@@ -30,21 +28,18 @@ A. Author, et al., "Title", 2020. \url{doi:10.1234/bad.}
 
 
 def test_pasj_latex_checker_sample():
-    checker = PasjLatexChecker()
-    with open(SAMPLE_PASJ_TEX, "r", encoding="utf-8") as f:
-        content = f.read()
-    res = checker.validate(content, filename="PASJ_Sample_Paper.tex")
+    checker = RuleBasedLatexChecker("pasj_latex")
+    content = SAMPLE_PASJ_TEX.read_bytes()
+    res = checker.check(content, filename="PASJ_Sample_Paper.tex")
 
     assert res["statusCode"] == 200
-    assert res["detected_template"] == "pasj"
-    assert res["template_name"] == "PASJ 和文原稿"
     assert res["total_references"] >= 20
     assert res["report_type"] == "latex"
 
 
 def test_pasj_latex_checker_invalid():
-    checker = PasjLatexChecker()
-    res = checker.validate(INVALID_PASJ_TEX, filename="bad.tex")
+    checker = RuleBasedLatexChecker("pasj_latex")
+    res = checker.check(INVALID_PASJ_TEX.encode("utf-8"), filename="bad.tex")
 
     assert res["statusCode"] == 200
     assert res["issuesFound"] >= 6
@@ -60,13 +55,11 @@ def test_pasj_latex_checker_invalid():
 
 def test_pasj_word_checker_sample():
     checker = PasjWordChecker()
-    with open(SAMPLE_PASJ_DOCX, "rb") as f:
-        res = checker.validate(f.read(), filename="PASJ_Sample_Paper.docx")
+    res = checker.check(SAMPLE_PASJ_DOCX.read_bytes(), filename="PASJ_Sample_Paper.docx")
 
     assert "scores" in res
     assert "summary" in res
-    assert res["detected_template"] == "pasj"
-    assert res["template_name"] == "PASJ 和文原稿"
+    assert res["filename"] == "PASJ_Sample_Paper.docx"
 
     scores = res["scores"]
     assert "Title" in scores
@@ -85,28 +78,24 @@ def test_pasj_word_checker_sample():
 
 def test_pasj_factory_dispatch():
     # Word dispatch
-    wc, w_template = get_checker(doc_type="word", template="pasj")
+    wc = get_checker("pasj", "word")
     assert isinstance(wc, PasjWordChecker)
-    assert w_template == "pasj"
 
     # LaTeX dispatch
-    lc, l_template = get_checker(doc_type="latex", template="pasj")
-    assert isinstance(lc, PasjLatexChecker)
-    assert l_template == "pasj"
+    lc = get_checker("pasj", "latex")
+    assert isinstance(lc, RuleBasedLatexChecker)
+    assert lc.rules_name == "pasj_latex"
 
     # Auto-detection for Word
-    with open(SAMPLE_PASJ_DOCX, "rb") as f:
-        doc_bytes = f.read()
+    doc_bytes = SAMPLE_PASJ_DOCX.read_bytes()
     assert detect_template(doc_bytes) == "pasj"
 
     # Auto-detection for LaTeX
-    with open(SAMPLE_PASJ_TEX, "r", encoding="utf-8") as f:
-        tex_str = f.read()
-    assert detect_latex_template(tex_str) == "pasj"
+    tex_bytes = SAMPLE_PASJ_TEX.read_bytes()
+    assert detect_latex_template(tex_bytes) == "pasj"
 
 
-def test_api_scan_latex_pasj():
-    client = TestClient(app)
+def test_api_scan_latex_pasj(client):
     res = client.post(
         "/api/scan/latex",
         json={"filename": "test_pasj.tex", "content": INVALID_PASJ_TEX, "template": "pasj"}
@@ -119,8 +108,7 @@ def test_api_scan_latex_pasj():
     assert "report_id" in data
 
 
-def test_api_scan_word_pasj():
-    client = TestClient(app)
+def test_api_scan_word_pasj(client):
     with open(SAMPLE_PASJ_DOCX, "rb") as f:
         res = client.post(
             "/api/scan/word",

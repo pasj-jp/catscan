@@ -1,99 +1,96 @@
-import os
 import pytest
-from catscan.checkers.jacow.latex_checker import JacowLatexChecker
+from catscan.checkers.latex_engine import RuleBasedLatexChecker
 from catscan.checkers.jacow.word_checker import JacowWordChecker
-from catscan.checkers.pasj.latex_checker import PasjLatexChecker
 from catscan.checkers.pasj.word_checker import PasjWordChecker
+from .conftest import load_example
 
 
-EXAMPLE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "example"))
-
-
-def test_latex_jacow_perfect():
-    checker = JacowLatexChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "latex_jacow_perfect.tex")
-    result = checker.validate(filepath)
+@pytest.mark.parametrize(
+    ("rules_name", "filename", "expected_issues", "expected_refs"),
+    [
+        ("jacow_latex", "latex_jacow_perfect.tex", 0, 2),
+        ("pasj_latex", "latex_pasj_perfect.tex", 0, 2),
+    ],
+)
+def test_latex_perfect_samples(rules_name, filename, expected_issues, expected_refs):
+    checker = RuleBasedLatexChecker(rules_name)
+    data = load_example(filename)
+    result = checker.check(data, filename=filename)
     assert result["statusCode"] == 200
-    assert result["issuesFound"] == 0
-    assert result["total_references"] == 2
+    assert result["issuesFound"] == expected_issues
+    assert result["total_references"] == expected_refs
 
 
-def test_latex_jacow_issues():
-    checker = JacowLatexChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "latex_jacow_issues.tex")
-    result = checker.validate(filepath)
+@pytest.mark.parametrize(
+    ("rules_name", "filename", "expected_issues", "expected_keywords"),
+    [
+        (
+            "jacow_latex",
+            "latex_jacow_issues.tex",
+            5,
+            ["bad_etal", "bad_doi_space", "bad_doi_url", "bad_vol_issue", "bad_no_prefix"],
+        ),
+        (
+            "pasj_latex",
+            "latex_pasj_issues.tex",
+            14,
+            [
+                "documentclass",
+                "Japanese title",
+                "Author names should be separated",
+                "English author block",
+                "Abstract must be written entirely in English",
+                "full-width comma",
+                "Figure and Table captions must be written in English",
+                "Figure caption does not end with a period",
+            ],
+        ),
+    ],
+)
+def test_latex_issue_samples(rules_name, filename, expected_issues, expected_keywords):
+    checker = RuleBasedLatexChecker(rules_name)
+    data = load_example(filename)
+    result = checker.check(data, filename=filename)
     assert result["statusCode"] == 200
-    assert result["issuesFound"] == 5
+    assert result["issuesFound"] == expected_issues
     body = result["body"]
-    assert "bad_etal" in body
-    assert "bad_doi_space" in body
-    assert "bad_doi_url" in body
-    assert "bad_vol_issue" in body
-    assert "bad_no_prefix" in body
+    for kw in expected_keywords:
+        assert kw in body
 
 
-def test_latex_pasj_perfect():
-    checker = PasjLatexChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "latex_pasj_perfect.tex")
-    result = checker.validate(filepath)
-    assert result["statusCode"] == 200
-    assert result["issuesFound"] == 0
-    assert result["total_references"] == 2
-
-
-def test_latex_pasj_issues():
-    checker = PasjLatexChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "latex_pasj_issues.tex")
-    result = checker.validate(filepath)
-    assert result["statusCode"] == 200
-    assert result["issuesFound"] == 14
-    body = result["body"]
-    assert "INCORRECT_DOCUMENT_CLASS" in body or "documentclass" in body
-    assert "MISSING_JAPANESE_TITLE" in body or "Japanese title" in body
-    assert "AUTHORS_DELIMITER_FULLWIDTH" in body or "Author names should be separated by a half-width comma" in body
-    assert "MISSING_ENGLISH_AUTHORS" in body or "English author block" in body
-    assert "ABSTRACT_CONTAINS_JAPANESE" in body or "Abstract must be written entirely in English" in body
-    assert "PUNCTUATION_FULLWIDTH_COMMA" in body or "full-width comma" in body
-    assert "FIGURE_CAPTION_CONTAINS_JAPANESE" in body or "Figure and Table captions must be written in English" in body
-    assert "FIGURE_CAPTION_MISSING_PERIOD" in body or "Figure caption does not end with a period" in body
-
-
-def test_word_pasj_perfect():
-    checker = PasjWordChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "PASJ_Sample_Paper.docx")
-    result = checker.validate(filepath)
+@pytest.mark.parametrize(
+    ("checker_cls", "filename", "expected_zero_categories"),
+    [
+        (PasjWordChecker, "PASJ_Sample_Paper.docx", ["Title", "Authors", "Abstract", "Paragraphs", "total"]),
+        (JacowWordChecker, "JACoW_MSWord_Style_Guide.docx", ["Title"]),
+    ],
+)
+def test_word_perfect_samples(checker_cls, filename, expected_zero_categories):
+    checker = checker_cls()
+    data = load_example(filename)
+    result = checker.check(data, filename=filename)
     scores = result["scores"]
-    assert scores["Title"][2] == 0
-    assert scores["Authors"][2] == 0
-    assert scores["Abstract"][2] == 0
-    assert scores["Paragraphs"][2] == 0
-    assert scores["total"][2] == 0
+    for cat in expected_zero_categories:
+        assert scores[cat][2] == 0
 
 
-def test_word_pasj_issues():
-    checker = PasjWordChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "word_pasj_issues.docx")
-    result = checker.validate(filepath)
-    scores = result["scores"]
-    # Verify the 4 intentional issue categories triggered failures
-    assert scores["Title"][2] > 0
-    assert scores["Authors"][2] > 0
-    assert scores["Abstract"][2] > 0
-    assert scores["Paragraphs"][2] > 0
-    assert scores["total"][2] >= 4
-
-
-def test_word_jacow_perfect():
-    checker = JacowWordChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "JACoW_MSWord_Style_Guide.docx")
-    result = checker.validate(filepath)
-    scores = result["scores"]
-    assert scores["Title"][2] == 0
-
-
-def test_word_jacow_issues():
-    checker = JacowWordChecker()
-    filepath = os.path.join(EXAMPLE_DIR, "word_jacow_issues.docx")
-    result = checker.validate(filepath)
-    scores = result["scores"]
-    assert scores["Title"][2] == 1
+@pytest.mark.parametrize(
+    ("checker_cls", "filename", "validator"),
+    [
+        (
+            PasjWordChecker,
+            "word_pasj_issues.docx",
+            lambda s: s["Title"][2] > 0 and s["Authors"][2] > 0 and s["Abstract"][2] > 0 and s["Paragraphs"][2] > 0 and s["total"][2] >= 4,
+        ),
+        (
+            JacowWordChecker,
+            "word_jacow_issues.docx",
+            lambda s: s["Title"][2] == 1,
+        ),
+    ],
+)
+def test_word_issue_samples(checker_cls, filename, validator):
+    checker = checker_cls()
+    data = load_example(filename)
+    result = checker.check(data, filename=filename)
+    assert validator(result["scores"])

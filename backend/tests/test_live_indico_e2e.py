@@ -9,10 +9,10 @@ import sys
 import json
 import logging
 import pytest
-from catscan.indico.config import IndicoConfig
+from catscan.settings import get_settings
 from catscan.indico.client import IndicoClient
 from catscan.indico.service import IndicoScanService
-from catscan.storage.report_store import ReportStore
+from catscan.services import reports
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("catscan.e2e")
@@ -22,19 +22,20 @@ WORD_CONTRIB_ID = int(os.environ.get("INDICO_TEST_WORD_CONTRIB_ID", "3"))
 LATEX_CONTRIB_ID = int(os.environ.get("INDICO_TEST_LATEX_CONTRIB_ID", "4"))
 
 
+@pytest.mark.live
 @pytest.mark.skipif(
     not os.environ.get("INDICO_API_TOKEN"),
     reason="Live Indico integration test requires INDICO_API_TOKEN environment variable",
 )
 def test_live_indico_e2e():
-    config = IndicoConfig.get_default()
+    settings = get_settings()
     print("=" * 70)
     print("CatScan <-> Indico Live End-to-End Integration Test")
-    print(f"Indico Base URL: {config.base_url}")
-    print(f"CatScan Web Base URL: {config.catscan_base_url}")
+    print(f"Indico Base URL: {settings.indico_base_url}")
+    print(f"CatScan Web Base URL: {settings.catscan_base_url}")
     print("=" * 70)
 
-    service = IndicoScanService(config=config)
+    service = IndicoScanService()
     client = service.client
 
     # 1. List Papers
@@ -67,8 +68,8 @@ def test_live_indico_e2e():
     assert word_res["comment_posted"] is True
     assert total_scores[0] > 0
 
-    # Verify report is in ReportStore
-    saved_word_report = ReportStore.get_report(word_res["report_id"])
+    # Verify report is in reports
+    saved_word_report = reports.load(word_res["report_id"])
     assert saved_word_report is not None
     assert saved_word_report["filename"] == word_res["filename"]
 
@@ -93,8 +94,8 @@ def test_live_indico_e2e():
     assert latex_res["comment_posted"] is True
     assert latex_res["result"]["issuesFound"] >= 0
 
-    # Verify report is in ReportStore
-    saved_latex_report = ReportStore.get_report(latex_res["report_id"])
+    # Verify report is in reports
+    saved_latex_report = reports.load(latex_res["report_id"])
     assert saved_latex_report is not None
     assert saved_latex_report["report_type"] == "latex"
 

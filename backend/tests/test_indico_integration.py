@@ -1,25 +1,21 @@
-import os
-import io
-import pytest
 from unittest.mock import MagicMock, patch
-from starlette.testclient import TestClient
 
-from catscan.main import app
-from catscan.indico.config import IndicoConfig
+from .conftest import load_example
+from catscan.settings import get_settings
 from catscan.indico.client import IndicoClient, IndicoAPIError
 from catscan.indico.service import IndicoScanService
-from catscan.storage.report_store import ReportStore
+from catscan.services import reports
 
 
 def test_indico_config_defaults():
-    cfg = IndicoConfig()
-    assert cfg.base_url.startswith("http")
-    assert isinstance(cfg.api_token, str)
-    assert cfg.catscan_base_url.startswith("http")
+    settings = get_settings()
+    assert settings.indico_base_url.startswith("http")
+    assert isinstance(settings.indico_api_token, str)
+    assert settings.catscan_base_url.startswith("http")
 
 
 def test_indico_client_headers():
-    client = IndicoClient(IndicoConfig(base_url="http://indico.example.com", api_token="test-token"))
+    client = IndicoClient(base_url="http://indico.example.com", api_token="test-token")
     headers = client._get_headers()
     assert headers["Authorization"] == "Bearer test-token"
     assert headers["Host"] == "indico.example.com"
@@ -45,9 +41,7 @@ def test_indico_service_mock_word():
     }
 
     # Use actual sample docx bytes
-    sample_docx_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../example/JACoW_MSWord_Style_Guide.docx"))
-    with open(sample_docx_path, "rb") as f:
-        mock_client.download_file.return_value = f.read()
+    mock_client.download_file.return_value = load_example("JACoW_MSWord_Style_Guide.docx")
 
     mock_client.create_comment.return_value = True
 
@@ -64,7 +58,7 @@ def test_indico_service_mock_word():
     assert "### 🐱 CatScan Automated Format Validation" in res["comment_text"]
 
     # Verify report is retrievable
-    report = ReportStore.get_report(res["report_id"])
+    report = reports.load(res["report_id"])
     assert report is not None
     assert report["filename"] == "MOP001.docx"
 
@@ -88,9 +82,7 @@ def test_indico_service_mock_latex():
         ],
     }
 
-    sample_tex_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../example/paper.tex"))
-    with open(sample_tex_path, "rb") as f:
-        mock_client.download_file.return_value = f.read()
+    mock_client.download_file.return_value = load_example("paper.tex")
 
     mock_client.create_comment.return_value = True
 
@@ -107,13 +99,12 @@ def test_indico_service_mock_latex():
     assert "### 🐱 CatScan Automated Reference & Style Validation" in res["comment_text"]
 
     # Verify report is retrievable
-    report = ReportStore.get_report(res["report_id"])
+    report = reports.load(res["report_id"])
     assert report is not None
     assert report["report_type"] == "latex"
 
 
-def test_api_indico_config_endpoint():
-    client = TestClient(app)
+def test_api_indico_config_endpoint(client):
     res = client.get("/api/indico/config")
     assert res.status_code == 200
     data = res.json()
@@ -121,11 +112,8 @@ def test_api_indico_config_endpoint():
     assert "token_configured" in data
 
 
-def test_api_indico_scan_endpoint_mock():
-    client = TestClient(app)
-    sample_docx_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../example/JACoW_MSWord_Style_Guide.docx"))
-    with open(sample_docx_path, "rb") as f:
-        docx_bytes = f.read()
+def test_api_indico_scan_endpoint_mock(client):
+    docx_bytes = load_example("JACoW_MSWord_Style_Guide.docx")
 
     with patch.object(IndicoClient, "get_contribution_paper") as mock_get, \
          patch.object(IndicoClient, "download_file") as mock_dl, \

@@ -1,8 +1,5 @@
-import pytest
-from starlette.testclient import TestClient
-from catscan.main import app
-from catscan.checkers.factory import get_checker
-from catscan.checkers.jacow.latex_checker import JacowLatexChecker
+from catscan.checkers.registry import get_checker
+from catscan.checkers.latex_engine import RuleBasedLatexChecker
 
 
 SAMPLE_VALID_TEX = r"""
@@ -53,8 +50,8 @@ E. Author, "No doi prefix", \url{10.18429/JACoW-IPAC2020-003}
 
 
 def test_latex_checker_valid():
-    checker = JacowLatexChecker(check_online_dois=False)
-    result = checker.validate(SAMPLE_VALID_TEX, filename="valid.tex")
+    checker = RuleBasedLatexChecker("jacow_latex", check_online_dois=False)
+    result = checker.check(SAMPLE_VALID_TEX.encode("utf-8"), filename="valid.tex")
 
     assert result["statusCode"] == 200
     assert result["issuesFound"] == 0
@@ -63,8 +60,8 @@ def test_latex_checker_valid():
 
 
 def test_latex_checker_issues_detected():
-    checker = JacowLatexChecker(check_online_dois=False)
-    result = checker.validate(SAMPLE_INVALID_TEX, filename="invalid.tex")
+    checker = RuleBasedLatexChecker("jacow_latex", check_online_dois=False)
+    result = checker.check(SAMPLE_INVALID_TEX.encode("utf-8"), filename="invalid.tex")
 
     assert result["statusCode"] == 200
     assert result["issuesFound"] >= 5
@@ -88,14 +85,12 @@ def test_latex_checker_issues_detected():
 
 
 def test_latex_factory_dispatch():
-    checker, template = get_checker(doc_type="latex")
-    assert isinstance(checker, JacowLatexChecker)
-    assert template == "jacow"
+    checker = get_checker("jacow", "latex")
+    assert isinstance(checker, RuleBasedLatexChecker)
+    assert checker.rules_name == "jacow_latex"
 
 
-def test_api_scan_latex_endpoint():
-    client = TestClient(app)
-
+def test_api_scan_latex_endpoint(client):
     # Valid LaTeX upload
     res = client.post(
         "/api/scan/latex",
