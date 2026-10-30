@@ -37,7 +37,10 @@ class RulesError(Exception):
 
 def rules_dir() -> Path:
     env = os.environ.get("CATSCAN_RULES_DIR")
-    return Path(env) if env else _DEFAULT_DIR
+    if env:
+        return Path(env)
+    from ...settings import get_settings
+    return get_settings().rules_dir
 
 
 def rules_path(name: str) -> Path:
