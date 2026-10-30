@@ -122,6 +122,6 @@ systemctl reload nginx
 echo "=== 7. Service Verification ==="
 sleep 2
 systemctl status catscan.service --no-pager
-curl -s http://127.0.0.1:8000/health || true
+curl -s http://127.0.0.1:8000/api/health || true
 echo ""
 echo "=== CatScan Deployment Finished Successfully! ==="
