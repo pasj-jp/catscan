@@ -1,21 +1,13 @@
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Union
-import io
+from typing import Protocol, Any
 
 
-class BasePaperChecker(ABC):
+class Checker(Protocol):
     """
-    Abstract base class for all paper format checkers (Word / LaTeX, JACoW / PASJ).
+    Protocol for document format checkers.
     """
 
-    @abstractmethod
-    def validate(
-        self,
-        file_source: Union[str, bytes, io.BytesIO],
-        filename: str = "document.docx",
-        conference_id: Optional[Union[str, int]] = None,
-    ) -> Dict[str, Any]:
+    def check(self, data: bytes, filename: str) -> dict[str, Any]:
         """
-        Validate the document formatting and return a structured report dictionary.
+        Validate document content bytes and return a structured report dictionary.
         """
-        pass
+        ...
