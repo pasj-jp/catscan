@@ -12,14 +12,6 @@ export default defineConfig({
                 target: 'http://localhost:8000',
                 changeOrigin: true,
             },
-            '/conferences': {
-                target: 'http://localhost:8000',
-                changeOrigin: true,
-            },
-            '/word': {
-                target: 'http://localhost:8000',
-                changeOrigin: true,
-            }
         }
     }
 })

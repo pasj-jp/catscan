@@ -3,6 +3,14 @@ import './Report.css';
 import ReactMarkdown from 'react-markdown';
 import { useLanguage } from "../i18n";
 
+interface StructuredIssue {
+    name: string;
+    type?: string;
+    message: string;
+    start?: number | null;
+    end?: number | null;
+}
+
 type LaTeXReport = {
     filename: string,
     content: string,
@@ -12,6 +20,7 @@ type LaTeXReport = {
     detected_template?: string,
     template_name?: string,
     total_references?: number,
+    issues?: StructuredIssue[],
 };
 
 type ReportProps = {
@@ -22,6 +31,8 @@ type ReportProps = {
 interface ParsedIssue {
     target: string;
     description: string;
+    start?: number | null;
+    end?: number | null;
 }
 
 const getCategoryBadge = (target: string, language: string) => {
@@ -57,31 +68,43 @@ const LaTeX: React.FC<ReportProps> = (props) => {
     const { t, language } = useLanguage();
     const { report, onReset } = props;
 
-    // Parse issue items from unabbreviated or content text
-    const textToParse = report.unabbreviated || report.content || "";
-    const rawBlocks = textToParse
-        .split("\n\n")
-        .map(s => s.trim())
-        .filter(s => s.length > 0 && s.startsWith("Issue found in "));
+    // Parse issue items from structured `report.issues` or fallback to unabbreviated/content text
+    let parsedIssues: ParsedIssue[] = [];
 
-    const parsedIssues: ParsedIssue[] = rawBlocks.map((block, idx) => {
-        const match = block.match(/^Issue found in\s+([^:]+):\s*([\s\S]*)$/);
-        if (match) {
+    if (report.issues && report.issues.length > 0) {
+        parsedIssues = report.issues.map((item, idx) => ({
+            target: item.name ? item.name.trim() : `Issue #${idx + 1}`,
+            description: item.message ? item.message.trim() : "",
+            start: item.start,
+            end: item.end,
+        }));
+    } else {
+        const textToParse = report.unabbreviated || report.content || "";
+        const rawBlocks = textToParse
+            .split("\n\n")
+            .map(s => s.trim())
+            .filter(s => s.length > 0 && s.startsWith("Issue found in "));
+
+        parsedIssues = rawBlocks.map((block, idx) => {
+            const match = block.match(/^Issue found in\s+([^:]+):\s*([\s\S]*)$/);
+            if (match) {
+                return {
+                    target: match[1].trim(),
+                    description: match[2].trim(),
+                };
+            }
             return {
-                target: match[1].trim(),
-                description: match[2].trim(),
+                target: `Issue #${idx + 1}`,
+                description: block,
             };
-        }
-        return {
-            target: `Issue #${idx + 1}`,
-            description: block,
-        };
-    });
+        });
+    }
 
-    const isPasj = report.detected_template === 'pasj' || 
+    const textForTemplateCheck = report.unabbreviated || report.content || "";
+    const isPasj = report.detected_template === 'pasj' ||
                    (report.template_name && report.template_name.includes('PASJ')) ||
-                   textToParse.includes('PASJ') ||
-                   rawBlocks.some(b => b.includes('PASJ'));
+                   textForTemplateCheck.includes('PASJ') ||
+                   (report.issues && report.issues.some(i => (i.type && i.type.includes('PASJ')) || (i.message && i.message.includes('PASJ'))));
 
     return (
         <div className="py-2">
@@ -100,7 +123,7 @@ const LaTeX: React.FC<ReportProps> = (props) => {
             {/* Template Badge & Guidelines Links */}
             <div className="d-flex align-items-center flex-wrap mb-4">
                 <span className="badge badge-primary mr-3 py-1 px-2 font-weight-normal">
-                    {isPasj ? (language === 'ja' ? 'PASJ 和文原稿' : 'PASJ Japanese Manuscript') 
+                    {isPasj ? (language === 'ja' ? 'PASJ 和文原稿' : 'PASJ Japanese Manuscript')
                             : (language === 'ja' ? 'JACoW 英文原稿' : 'JACoW English Manuscript')}
                 </span>
 
@@ -128,7 +151,7 @@ const LaTeX: React.FC<ReportProps> = (props) => {
                         <a href="https://refs.jacow.org/" target="_blank" rel="noreferrer" className="text-secondary font-weight-bold mr-3 small">
                             <i className="fas fa-search mr-1"></i> JACoW Reference Search
                         </a>
-                        <a href="https://www.jacow.org/Authors/CSEHelp" target="_blank" rel="noreferrer" className="text-secondary font-weight-bold small">
+                        <a href="https://www.jacow.org/Authors" target="_blank" rel="noreferrer" className="text-secondary font-weight-bold small">
                             <i className="fas fa-question-circle mr-1"></i> {t('guidelineHelp')}
                         </a>
                     </>
@@ -145,7 +168,7 @@ const LaTeX: React.FC<ReportProps> = (props) => {
                                 {language === 'ja' ? '合格 (All Passed)' : 'OK - All Passed'}
                             </h5>
                             <div className="small">
-                                {isPasj 
+                                {isPasj
                                     ? (language === 'ja' ? 'すべての書式、句読点、英文要旨および参考文献がPASJ執筆基準を満たしています。' : 'All formatting, punctuation, English abstract, and citations comply with PASJ rules.')
                                     : t('latexNoIssues')}
                             </div>

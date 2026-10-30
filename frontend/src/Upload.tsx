@@ -53,6 +53,7 @@ const Upload: React.FC<UploadProps> = (props) => {
                                 detected_template: response.data.detected_template,
                                 template_name: response.data.template_name,
                                 total_references: response.data.total_references,
+                                issues: response.data.issues,
                             },
                         });
                     } else {
@@ -150,6 +151,7 @@ const Upload: React.FC<UploadProps> = (props) => {
                                 detected_template: response.data.detected_template,
                                 template_name: response.data.template_name,
                                 total_references: response.data.total_references,
+                                issues: response.data.issues,
                             }
                         });
                         if (response.data.report_id) {
