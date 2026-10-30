@@ -3,7 +3,6 @@ CatScan generic rules and primitives engine.
 """
 from .primitives import (
     ElementContext,
-    CheckResult,
     register_primitive,
     get_primitive,
 )
@@ -14,7 +13,6 @@ from .evaluator import (
 
 __all__ = [
     "ElementContext",
-    "CheckResult",
     "register_primitive",
     "get_primitive",
     "evaluate_element",

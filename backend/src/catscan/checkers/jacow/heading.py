@@ -1,52 +1,6 @@
 import re
 from .styles import check_style
-
-HEADING_STYLES = {
-    'Section': {
-        'styles': {
-            'jacow': 'JACoW_Section Heading',
-            'normal': 'Section Heading',
-        },
-        'type': 'Section Heading',
-        'alignment': 'CENTER',
-        'font_size': 12.0,
-        'space_before': 9.0,
-        'space_after': 3.0,
-        'bold': True,
-        'italic': None,
-        'case': 'UPPER CASE',
-    },
-    'Subsection': {
-        'styles': {
-            'jacow': 'JACoW_Subsection Heading',
-            'normal': 'Subsection Heading',
-        },
-        'type': 'Subsection Heading',
-        'alignment': None,
-        'font_size': 12.0,
-        'space_before': 6.0,
-        'space_after': 3.0,
-        'bold': None,
-        'italic': True,
-        'case': 'Initial Caps',
-    },
-    'Third': {
-        'styles': {
-            'jacow': 'JACoW_Third - Level Heading',
-            'normal': 'Third - Level Heading',
-        },
-        'type': 'Third Level Heading',
-        'alignment': None,
-        'font_size': 10.0,
-        'space_before': 6.0,
-        'space_after': 0.0,
-        'bold': True,
-        'italic': None,
-        'case': 'Initial Caps',
-    }
-}
-EXTRA_RULES = []
-HELP_INFO = 'SCEHeadings'
+from .constants import HEADING_STYLES, HEADING_EXTRA_RULES as EXTRA_RULES, HEADING_HELP_INFO as HELP_INFO
 
 
 def guess_heading_type(p):

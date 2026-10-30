@@ -1,33 +1,16 @@
 import re
 from .styles import check_style, VALID_STYLES, VALID_NON_JACOW_STYLES
-from .heading import HEADING_STYLES
 from .page import get_text
-
-PARAGRAPH_STYLES = {
-    'normal': {
-        'styles': {
-            'jacow': 'JACoW_Body Text Indent',
-            'normal': 'Body Text Indent',
-        },
-        'alignment': 'JUSTIFY',
-        'font_size': 10.0,
-        'space_before': 0.0,
-        'space_after': 0.0,
-        'first_line_indent': 9.35  # 0.33cm
-    }
-}
-EXTRA_RULES = ''
-PARAGRAPH_STYLE_EXCEPTIONS = ['JACoW_Bulleted List', 'JACoW_Numbered list', 'Bulleted List', 'Numbered list']
-
-HELP_INFO = 'SCEParag'
-ALL_HELP_INFO = 'CSEParsedDocument'
-ALL_EXTRA_INFO = {
-    'title':'Breakdown',
-    'headers': '<thead><tr><th style="width:60%">Text</th><th style="width:15%">Style</th><th style="width:15%">In Table</th><th style="width:10%">JACoW Style</th> </tr></thead>',
-    'columns': ['text', 'style', 'in_table', 'style_ok']
-}
-
-PARAGRAPH_SIZE_MIN = 50
+from .constants import (
+    HEADING_STYLES,
+    PARAGRAPH_STYLES,
+    PARAGRAPH_EXTRA_RULES as EXTRA_RULES,
+    PARAGRAPH_STYLE_EXCEPTIONS,
+    PARAGRAPH_HELP_INFO as HELP_INFO,
+    ALL_PARAGRAPH_HELP_INFO as ALL_HELP_INFO,
+    ALL_PARAGRAPH_EXTRA_INFO as ALL_EXTRA_INFO,
+    PARAGRAPH_SIZE_MIN,
+)
 
 
 def parse_all_paragraphs(doc):

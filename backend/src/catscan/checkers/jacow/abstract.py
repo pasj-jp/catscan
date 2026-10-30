@@ -1,24 +1,5 @@
 from .styles import check_style_detail
-
-STYLES = {
-    'normal': {
-        'type': 'Abstract Heading',
-        'styles': {
-            'jacow': 'JACoW_Abstract_Heading',
-            'normal': 'Abstract_Heading',
-        },
-        'alignment': None,
-        'font_size': 12.0,
-        'space_before': 0.0,
-        'space_after': 3.0,
-        'bold': None,
-        'italic': True,
-    }
-}
-EXTRA_RULES = [
-    "Text must be <b>Abstract</b>",
-]
-HELP_INFO = 'SCEAbsract'
+from .constants import ABSTRACT_STYLES as STYLES, ABSTRACT_EXTRA_RULES as EXTRA_RULES, ABSTRACT_HELP_INFO as HELP_INFO
 
 
 def get_abstract_detail(p):
@@ -47,13 +28,3 @@ def get_abstract_summary(p):
         'anchor': 'abstract submission'
     }
 
-
-def get_abstract_summary_latex(part):
-    if part and part.contents:
-        text = 'Abstract'
-        for i, p in enumerate(part.contents):
-            # make sure abstract has text
-            if not p == '':
-                return {'text': text, 'title': 'Abstract', 'ok': True, 'extra_info': f'Abstract: {text}'}
-
-    return {'text': '', 'title': 'Abstract', 'ok': False, 'extra_info': f'No Abstract found'}

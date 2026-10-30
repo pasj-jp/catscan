@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from ..jacow.page import check_title_case
+from ..common.docx_utils import check_title_case
 
 # Default regex for Japanese characters (Hiragana, Katakana, Kanji)
 DEFAULT_CJK_PATTERN = re.compile(r'[\u3040-\u30ff\u4e00-\u9faf]')
@@ -30,13 +30,6 @@ class ElementContext:
     style_name: str
     style_details: Dict[str, Any]
     paragraph: Optional[Any] = None
-
-
-@dataclass
-class CheckResult:
-    passed: bool
-    fail_message: Optional[str] = None
-    key: Optional[str] = None
 
 
 @register_primitive("style_contains")

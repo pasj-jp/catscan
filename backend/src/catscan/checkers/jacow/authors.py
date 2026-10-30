@@ -1,31 +1,14 @@
 import re
 from .styles import check_style_detail
+from .constants import (
+    AUTHOR_STYLES as STYLES,
+    AUTHOR_EXTRA_RULES as EXTRA_RULES,
+    AUTHOR_HELP_INFO as HELP_INFO,
+    AUTHOR_IGNORE as IGNORE,
+)
 
 NON_BREAKING_SPACE = '\u00A0'
 LINE_TERMINATOR_CHARS = ['\u000A', '\u000B', '\u000C', '\u000D', '\u0085', '\u2028', '\u2029', '\n', '\\n']
-# line terminator chars respectively:
-# line feed, vertical tab, form feed, carriage return,
-# next line, line separator, paragraph separator
-
-STYLES = {
-    'normal': {
-       'type': 'Author List',
-       'styles': {
-           'jacow': 'JACoW_Author List',
-           'normal': 'Author List',
-       },
-       'alignment': 'CENTER',
-       'font_size': 12.0,
-       'space_before': 9.0,
-       'space_after': 12.0,
-       'bold': [None, False],
-       'italic': [None, False],
-   }
-}
-EXTRA_RULES = ['Case: UPPER and lowercase']
-HELP_INFO = 'SCEAuthors'
-
-IGNORE = ['P.R. China']
 
 def get_author_details(p):
     superscript_removed_text = ''  # remove superscript footnotes
@@ -59,71 +42,6 @@ def get_author_summary(paragraphs):
         'message': 'Author issues',
         'anchor': 'author'
     }
-
-
-def parse_author_latex(part):
-    # TODO finish this better way of parsing author and affiliation
-    authors = ['']
-    author_count = 0
-    for i, p in enumerate(part.contents):
-        if isinstance(p, str):
-            # check whether there is \\ optionally followed by \n\t\t which is used to split authors
-            if '\\' in p:
-                author_split = p.split('\\')
-                for j, author in enumerate(author_split):
-                    author_text = author.replace('\n\t\t', '')
-                    if j == 0:
-                        if author_count + 1 > len(authors):
-                            authors.append(author_text)
-                        else:
-                            authors[author_count] = authors[author_count] + author_text
-                    elif not author_text == '':
-                        author_count = author_count + 1
-                        authors.append(author_text)
-            else:
-                if author_count + 1 > len(authors):
-                    authors.append(p)
-                else:
-                    authors[author_count] = authors[author_count] + p
-        elif p.name in ['thanks']:
-            # ignore thanks but assume that indicates the start of new author info
-            author_count = author_count + 1
-            continue
-        elif p.name in ['textsuperscript']:
-            # ignore textsuperscript notes
-            continue
-    return authors
-
-
-def get_author_summary_latex(part):
-    """
-    Example from JACoW example latex file
-    (double \\ before author, thanks and textsuperscript were single in example but causes issues in this comment)
-    \\author{A. N. Author\\thanks{email address}, H. Coauthor, Name of Institute or Affiliation, City, Country \\
-            P. Contributor\\textsuperscript{1}, Name of Institute or Affiliation, City, Country \\
-            \\textsuperscript{1}also at Name of Secondary Institute or Affiliation, City, Country}
-
-    :param part: author component of the parsed tex document
-    :return: dict with summary result info
-    """
-    if part and part.string:
-        text = ''
-        for i, p in enumerate(part.contents):
-            if isinstance(p, str):
-                author_text = p.replace('\n\t\t', '')
-                author_text = author_text.replace('\\\\', ', ')
-                author_text = author_text.replace(',,', ',')
-                author_text = author_text.replace('  ', ' ')
-                for item in IGNORE:
-                    author_text = author_text.replace(item, '')
-                text = text + author_text
-            elif p.name in ['thanks', 'textsuperscript']:
-                # ignore text in thanks and textsuperscript
-                continue
-
-        return {'original_text': part.string, 'text': text, 'title': 'Author', 'ok': True, 'extra_info': f'Author: {text}'}
-
-    return {'original_text': '', 'text': '', 'title': 'Author', 'ok': False, 'extra_info': f'No Author found'}
 
 
 def get_author_list(text):

@@ -2,52 +2,16 @@ import re
 from collections import OrderedDict
 from itertools import chain
 from .styles import check_style
+from .constants import (
+    FIGURE_STYLES as STYLES,
+    VALID_FIGURE_STYLES,
+    FIGURE_EXTRA_RULES as EXTRA_RULES,
+    FIGURE_HELP_INFO as HELP_INFO,
+)
 
 RE_FIG_TITLES = re.compile(r'(^Figure \d+[.:])')
 RE_WRONG_TITLES = re.compile(r'(^Fig.\s?\d+|^Figure\s?\d+[.\s]+)')
 RE_FIG_IN_TEXT = re.compile(r'(Fig.\s?\d+|Figure\s?\d+[.\-\s]+)')
-
-STYLES = {
-    'SingleLine': {
-        'type': 'Figure - Single Line',
-        'styles': {
-            'jacow': 'Figure Caption',
-            'normal': 'Caption',
-        },
-        'alignment': 'CENTER',
-        'font_size': 10.0,
-        'space_before': 3.0,
-        'space_after': ['>=', 3.0],
-        'bold': None,
-        'italic': None,
-    },
-    'MultiLine': {
-        'type': 'Figure - Multi Line',
-        'styles': {
-            'jacow': 'Figure Caption Multi Line',
-        },
-        'alignment': 'JUSTIFY',
-        'font_size': 10.0,
-        'space_before': 3.0,
-        'space_after': ['>=', 3.0],
-        'bold': None,
-        'italic': None,
-    }
-}
-
-VALID_FIGURE_STYLES = ['Figure Caption', 'Figure Caption Multi Line', 'Caption', 'Caption Multi Line']
-
-EXTRA_RULES = [
-    'Figure captions must be directly below the figure',
-    'Figure must be numbered in the order they are referred to in the main text.',
-    'Figure numbers must be unique and not duplicated, or skip numbers in the series.',
-    'Figure Captions 1 line long must be “centred” (“Figure Caption” Style). Figure captions 2 or more lines must be “justified” (“Caption Multi Line” Style).',
-    'Figure captions and figures are not to be indented.',
-    'Figure captions must start with “Figure n:”.',
-    'In text references to the figure if mid-sentence must be “Fig. n”, at the start of a sentence it must be “Figure n”.',
-    'Figures must have a “.” On the end of the final line.',
-]
-HELP_INFO = 'CSEFigures'
 EXTRA_INF0 = {
     'title':'Use Breakdown',
     'headers': '<thead><tr><th>No.</th><th colspan="2">Caption</th><th>Unique</th><th colspan="2">References</th><th width="30%">Text</th></tr></thead>',

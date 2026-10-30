@@ -8,6 +8,11 @@ from lxml.etree import _Element
 
 from .styles import check_style
 from titlecase import titlecase
+from .constants import (
+    TABLE_STYLES as STYLES,
+    TABLE_EXTRA_RULES as EXTRA_RULES,
+    TABLE_HELP_INFO as HELP_INFO,
+)
 
 RE_TABLE_LIST = re.compile(r'^Table \d+:')
 RE_TABLE_ORDER = re.compile(r'^Table \d+')
@@ -16,41 +21,6 @@ RE_TABLE_FORMAT = re.compile(r'\.$')
 RE_TABLE_TITLE_CAPS = re.compile(r'^(?:[A-Z][^\s]*\s?)+$')
 RE_SPECIAL_CHAR = re.compile(r'[^a-zA-Z ]')
 RE_MULTI_SPACE = re.compile(r' +')
-
-STYLES = {
-    'SingleLine': {
-        'type': 'Table - Single Line',
-        'styles': {
-            'jacow': 'Table Caption',
-        },
-        'alignment': 'CENTER',
-        'font_size': 10.0,
-        'space_before': ['>=', 3.0],
-        'space_after': 3.0,
-        'bold': None,
-        'italic': None,
-    },
-    'MultiLine': {
-        'type': 'Table - Multi Line',
-        'styles': {
-            'jacow': 'Table Caption Multi Line',
-        },
-        'alignment': 'JUSTIFY',
-        'font_size': 10.0,
-        'space_before': ['>=', 3.0],
-        'space_after': 3.0,
-        'bold': None,
-        'italic': None,
-    }
-}
-EXTRA_RULES = [
-    'Table captions are actually titles, this means that they are in Title Case, and don’t have a “.” At the end, well unless exceeds 2 lines',
-    'The table caption is centred if 1 line (“Table Caption” Style), and Justified if 2 or more (“Table Caption Multi Line” Style).  The table caption must appear above the Table.',
-    'All tables must be numbered in the order they appear in the document and not skip a number in the sequence.',
-    'All tables start with “Table n:”.',
-    'All tables must be referred to in the main text and use “Table n”.'
-]
-HELP_INFO = 'CSETables'
 EXTRA_INFO = {
     'title':'Use Breakdown',
     'headers': '<thead><tr><th>No.</th><th colspan="3">Caption</th><th colspan="2">Used</th><th>Order</th><th>Table</th></tr></thead>',

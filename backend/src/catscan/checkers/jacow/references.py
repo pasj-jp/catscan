@@ -1,67 +1,16 @@
 import re
 from itertools import chain
 from .styles import check_style, get_style_font_run
+from .constants import (
+    REFERENCE_STYLES as STYLES,
+    REFERENCE_EXTRA_RULES as EXTRA_RULES,
+    REFERENCE_HELP_INFO as HELP_INFO,
+    REFERENCE_EXTRA_INFO as EXTRA_INFO,
+)
 
 RE_REFS_LIST = re.compile(r'^\[([\d]+)\]')
 RE_REFS_LIST_TAB = re.compile(r'^\[([\d]+)\]\t')
 RE_REFS_INTEXT = re.compile(r'(?<!^)\[([\d ,-]+)\]')
-
-STYLES = {
-    'LessThanNineTotal': {
-        'type': 'References when ≤ 9',
-        'styles': {
-            'jacow': 'JACoW_References when ≤ 9',
-        },
-        'alignment': 'JUSTIFY',
-        'font_size': 9.0,
-        'space_before': 0.0,
-        'space_after': 3.0,
-        # 'hanging_indent':  0.0,
-        'first_line_indent': -14.75,  # 0.52 cm,
-    },
-    'LessThanNine': {
-        'type': 'Reference #1-9 when >= 10 Refs',
-        'styles': {
-            'jacow': 'JACoW_Reference #1-9 when >= 10 Refs',
-        },
-        'alignment': 'JUSTIFY',
-        'font_size': 9.0,
-        'space_before': 0.0,
-        'space_after': 3.0,
-        # 'hanging_indent': 0,  # 0.16 cm,
-        'first_line_indent': -14.75,  # 0.52 cm,
-    },
-    'MoreThanNine': {
-        'type': 'Reference #10 onwards',
-        'styles': {
-            'jacow': 'JACoW_Reference #10 onwards',
-        },
-        'alignment': 'JUSTIFY',
-        'font_size': 9.0,
-        'space_before': 0.0,
-        'space_after': 3.0,
-        # 'hanging_indent':  0.0,
-        'first_line_indent': -19.3,  # 0.68 cm,
-    }
-}
-EXTRA_RULES = [
-    'All references must be ordered in the reference list based on when they first are referred to in the main text.',
-    'References in the main text can be [n], or [n1, n2, n5, etc.], or [n – n3].',
-    'A reference can be referred to multiple times in the main text as required..',
-    'All references in the reference list must be sited in the main text at least once.',
-    'Reference lists which have 9 or less references must be “JACoW_Reference when &lt;= 9 Refs” Style.',
-    'When greater than 9 references the first 9 must be “JACoW_Reference #1-9 when &gt;= 10 Refs” Style, '
-    'and 10 and onwards must be “JACoW_Reference #10 onwards” Style.',
-    'All references must be numbered [n] and have a tab between the ] and the start of the reference text. '
-    '(note many authors put spaces in which stuffs up the spacing.',
-    'DOIs and URLs should be font 8pt Liberation Mono',
-]
-HELP_INFO = 'SCEReferences'
-EXTRA_INFO = {
-    'title': 'Use Breakdown',
-    'headers': '<thead><tr><th>No.</th><th colspan="3">Text</th><th>Used</th><th>Order</th><th>Unique</th></tr></thead>',
-    'columns': ['id', 'text', 'text_error', 'text_ok', 'used_ok', 'order_ok', 'unique_ok']
-}
 
 
 def _ref_to_int(ref):
