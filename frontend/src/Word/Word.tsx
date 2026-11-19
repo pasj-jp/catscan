@@ -50,7 +50,7 @@ const CATEGORY_NAMES_JA: { [key: string]: string } = {
     Tables: '表キャプション (Tables)',
     References: '参考文献 (References)',
     Margins: '余白・ページ設定 (Margins)',
-    Styles: 'PASJスタイル・ページ数 (Styles)',
+    Styles: 'PASJ公式スタイル (Styles)',
     Document: '文書全般 (Document)',
 };
 

@@ -130,9 +130,9 @@ const Section: React.FC<SectionProps> = (props) => {
                     {props.ok === true && <i className={"text-success fas fa-check-circle"}></i>}
                     {props.ok === false && <i className={"text-danger fas fa-times-circle"}></i>}
                     {props.ok === 2 && <i className={"text-warning fas fa-exclamation-triangle"}></i>}
-                    {(typeof sectionArgs.section_header === 'undefined') && <h5 className="font-weight-bold text-dark mb-0">{sectionTitle}</h5>}
-                    {(typeof sectionArgs.section_header === 'string') &&
-                        <h5 className="font-weight-bold text-dark mb-0" dangerouslySetInnerHTML={{__html: sectionArgs.section_header}}></h5>}
+                    <h5 className="font-weight-bold text-dark mb-0">
+                        {sectionArgs.section_header ?? sectionTitle}
+                    </h5>
                 </div>
                 {props.help_info &&
                     <a href={`https://www.jacow.org/Authors/${props.help_info}`} target="_blank" rel="noreferrer" className="small text-secondary">

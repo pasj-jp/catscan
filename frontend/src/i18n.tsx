@@ -18,6 +18,8 @@ export const translations = {
         uploadTitle: '原稿ファイルのアップロード',
         uploadSubtitle: '日本加速器学会 (PASJ) 年会プロシーディングス原稿 (.docx / .tex) を選択してください。',
         templateLabel: '原稿フォーマット種別:',
+        templateAuto: '自動判定 (Auto)',
+        templateAutoDesc: '原稿のスタイルやLaTeXコマンドから PASJ 和文 / JACoW 英文を自動判定します。',
         templateJacow: 'JACoW 英文原稿 (English)',
         templateJacowName: 'JACoW 英文原稿',
         templateJacowDesc: 'JACoW公式フォーマット（英語執筆）の余白・見出し・スタイル・参考文献を検査します。',
@@ -25,10 +27,10 @@ export const translations = {
         templatePasjName: 'PASJ 和文原稿',
         templatePasjDesc: '日本加速器学会 (PASJ) 年会和文原稿フォーマット（タイトル・著者併記、句読点、図表キャプション、スタイル）を検査します。',
         checkerNotImplemented: 'この原稿形式の検査機能はまだ実装されていません。',
-        fileLabel: '原稿ファイル (.docx または .tex):',
+        fileLabel: '原稿ファイル (.docx / .tex / .zip / .tar.gz):',
         dropzonePrompt: 'ここに原稿ファイルをドラッグ＆ドロップ',
         dropzoneClick: 'またはクリックしてファイルを選択',
-        dropzoneFormats: '対応形式: .docx (Microsoft Word) / .tex (LaTeX)',
+        dropzoneFormats: '対応形式: .docx (Word) / .tex (LaTeX) / .zip, .tar.gz (アーカイブ)',
         fileSelected: 'ファイル選択済み（クリックで変更）',
         scanButton: 'フォーマットを検査する (Scan Paper)',
 
@@ -36,6 +38,7 @@ export const translations = {
         processingTitle: '論文を解析しています...',
         processingDesc: 'スタイル設定、ページ余白、段組み、図表キャプション、参考文献形式を検証しています。',
         errorTitle: '検証に失敗しました',
+        reportLoadError: '指定された検証レポートをサーバから取得できませんでした。',
         retryButton: '戻って再試行',
 
         // Resources Page (Holds all detailed checklists & templates)
@@ -95,6 +98,8 @@ export const translations = {
         uploadTitle: 'Upload Manuscript',
         uploadSubtitle: 'Upload your PASJ conference manuscript (.docx or .tex) for automated formatting checks.',
         templateLabel: 'Manuscript Format:',
+        templateAuto: 'Auto-detect',
+        templateAutoDesc: 'Automatically detects PASJ Japanese or JACoW English template from your manuscript.',
         templateJacow: 'JACoW English Paper',
         templateJacowName: 'JACoW English Paper',
         templateJacowDesc: 'Verifies margins, styles, headings, and references for JACoW format (English papers).',
@@ -102,10 +107,10 @@ export const translations = {
         templatePasjName: 'PASJ Japanese Paper',
         templatePasjDesc: 'Validates PASJ Japanese paper layout, bilingual titles & authors, punctuation, and captions.',
         checkerNotImplemented: 'Validation for this manuscript format is not implemented yet.',
-        fileLabel: 'Paper File (.docx or .tex):',
+        fileLabel: 'Paper File (.docx / .tex / .zip / .tar.gz):',
         dropzonePrompt: 'Drag & drop your paper here',
         dropzoneClick: 'or click to browse from your computer',
-        dropzoneFormats: 'Supported formats: .docx (Microsoft Word) / .tex (LaTeX)',
+        dropzoneFormats: 'Supported formats: .docx (Word) / .tex (LaTeX) / .zip, .tar.gz (Archive)',
         fileSelected: 'File selected (click to change)',
         scanButton: 'Scan Paper',
 
@@ -113,6 +118,7 @@ export const translations = {
         processingTitle: 'Analyzing Document...',
         processingDesc: 'Verifying styles, page margins, columns, captions, and reference formatting.',
         errorTitle: 'Validation Failed',
+        reportLoadError: 'Unable to retrieve the requested report from this server.',
         retryButton: 'Back to Try Again',
 
         // Resources Page

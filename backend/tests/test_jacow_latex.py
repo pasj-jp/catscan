@@ -1,5 +1,5 @@
 from catscan.checkers.registry import get_checker
-from catscan.checkers.latex_engine import RuleBasedLatexChecker
+from catscan.checkers.latex.engine import RuleBasedLatexChecker
 
 
 SAMPLE_VALID_TEX = r"""

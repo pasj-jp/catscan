@@ -16,14 +16,18 @@ Install [uv](https://docs.astral.sh/uv/) and Node.js with npm, then from the
 repository root install the project's Python and JavaScript dependencies:
 
 ```sh
-uv python install 3.14
-cd backend && uv sync --locked && cd ..
+uv python install 3.12
+cd backend && uv sync && cd ..
 cd frontend && npm ci && cd ..
 ```
 
-Python 3.14 is required by the backend configuration. The frontend uses Vite's
+Python 3.12+ is supported by the backend configuration. The frontend uses Vite's
 development proxy to send `/api` requests to `http://localhost:8000`, so no
 environment file is needed for local development.
+
+For Indico integration routes (`/api/indico/*`), configure `CATSCAN_INTERNAL_TOKEN`
+on the backend and set the same token in the Indico CatScan plugin settings
+(or set `CATSCAN_REQUIRE_INDICO_AUTH=false` for local testing only).
 
 ## Run the application
 

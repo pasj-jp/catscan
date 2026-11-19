@@ -42,6 +42,7 @@ def isolated_reports_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     reports_path = tmp_path / "reports"
     reports_path.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("REPORTS_DIR", str(reports_path))
+    monkeypatch.setenv("CATSCAN_INTERNAL_TOKEN", "test-internal-token")
     get_settings.cache_clear()
     yield reports_path
     get_settings.cache_clear()

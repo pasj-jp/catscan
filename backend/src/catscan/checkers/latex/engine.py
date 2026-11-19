@@ -1,8 +1,7 @@
-import io
 import re
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from ..rules import load_rules
 from ..rules.schema import LatexRule, LatexRules, LatexTarget
@@ -16,6 +15,21 @@ BIBITEM_RE = re.compile(
 DOI_RE = re.compile(r'10\.\d{4,9}/[-._\\;()/:a-zA-Z0-9]+')
 MACRO_ARG = r'\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}'
 CAPTION_RE = re.compile(r'\\caption' + MACRO_ARG, re.DOTALL)
+
+
+def decode_tex_bytes(data: bytes) -> str:
+    """Decode LaTeX source supporting UTF-8 as well as common Japanese TeX encodings."""
+    if b"\x1b$" in data:
+        try:
+            return data.decode("iso2022_jp")
+        except UnicodeDecodeError:
+            pass
+    for encoding in ("utf-8-sig", "utf-8", "cp932", "euc_jp"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
 
 
 @dataclass
@@ -196,7 +210,7 @@ class RuleBasedLatexChecker:
 
     def check(self, data: bytes, filename: str = "document.tex") -> Dict[str, Any]:
         rules = self.rules
-        text = data.decode("utf-8", errors="replace")
+        text = decode_tex_bytes(data)
         src = LatexSource(text)
         bib_items = src.bib_items()
         issues = self.find_issues(src, rules, bib_items)
@@ -227,26 +241,3 @@ class RuleBasedLatexChecker:
         }
         result.update(rules.report.extra_output)
         return result
-
-    def validate(
-        self,
-        file_source: Union[str, bytes, io.BytesIO],
-        filename: str = "document.tex",
-        conference_id: Optional[Union[str, int]] = None,
-    ) -> Dict[str, Any]:
-        if isinstance(file_source, bytes):
-            data = file_source
-        elif isinstance(file_source, io.BytesIO):
-            data = file_source.getvalue()
-        elif isinstance(file_source, str):
-            if "\n" not in file_source and (file_source.endswith(".tex") or "/" in file_source or "\\" in file_source):
-                try:
-                    with open(file_source, "rb") as f:
-                        data = f.read()
-                except Exception:
-                    data = file_source.encode("utf-8")
-            else:
-                data = file_source.encode("utf-8")
-        else:
-            data = str(file_source).encode("utf-8")
-        return self.check(data, filename=filename)

@@ -3,7 +3,7 @@ import pytest
 from .conftest import EXAMPLE_DIR, load_example
 from catscan.checkers.registry import get_checker, detect_template, detect_latex_template
 from catscan.checkers.pasj.word_checker import PasjWordChecker
-from catscan.checkers.latex_engine import RuleBasedLatexChecker
+from catscan.checkers.latex.engine import RuleBasedLatexChecker
 
 SAMPLE_PASJ_DOCX = EXAMPLE_DIR / "PASJ_Sample_Paper.docx"
 SAMPLE_PASJ_TEX = EXAMPLE_DIR / "PASJ_Sample_Paper.tex"

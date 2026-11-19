@@ -20,7 +20,7 @@ Inside the Indico virtual environment (e.g. `/opt/indico/.venv`):
 ```bash
 # 1. Install plugin into Indico's virtual environment:
 # Option A (Remote install directly from GitHub monorepo):
-pip install "git+https://github.com/<owner>/catscan.git#subdirectory=plugins/indico-plugin-catscan"
+pip install "git+https://github.com/pasj-jp/catscan.git#subdirectory=plugins/indico-plugin-catscan"
 
 # Option B (Local editable/development mode):
 pip install -e /path/to/catscan/plugins/indico-plugin-catscan
@@ -43,6 +43,6 @@ In Indico:
 2. Go to **Administration** -> **Plugins**.
 3. Locate **CatScan** and click **Configure**.
 4. Adjust settings:
-   - **CatScan Internal API URL**: Default is `http://127.0.0.1:8000`.
+   - **CatScan Internal API URL**: Internal loopback URL (e.g. `http://127.0.0.1:8001`).
    - **Auto-scan on manuscript upload**: Checkbox (default: `True`).
-   - **CatScan API Token**: Optional bearer token.
+   - **CatScan Internal API Token**: Shared Bearer token matching `CATSCAN_INTERNAL_TOKEN` on the CatScan backend.

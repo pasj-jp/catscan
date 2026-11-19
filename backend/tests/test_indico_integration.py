@@ -105,11 +105,27 @@ def test_indico_service_mock_latex():
 
 
 def test_api_indico_config_endpoint(client):
-    res = client.get("/api/indico/config")
+    unauth = client.get("/api/indico/config")
+    assert unauth.status_code == 401
+
+    forbidden = client.get("/api/indico/config", headers={"Authorization": "Bearer wrong-token"})
+    assert forbidden.status_code == 403
+
+    res = client.get("/api/indico/config", headers={"Authorization": "Bearer test-internal-token"})
     assert res.status_code == 200
     data = res.json()
     assert "indico_base_url" in data
     assert "token_configured" in data
+    assert data["auth_required"] is True
+
+
+def test_api_indico_fails_closed_without_internal_token(client, monkeypatch):
+    monkeypatch.delenv("CATSCAN_INTERNAL_TOKEN", raising=False)
+    monkeypatch.delenv("CATSCAN_REQUIRE_INDICO_AUTH", raising=False)
+    get_settings.cache_clear()
+
+    res = client.get("/api/indico/config")
+    assert res.status_code == 503
 
 
 def test_api_indico_scan_endpoint_mock(client):
@@ -134,7 +150,10 @@ def test_api_indico_scan_endpoint_mock(client):
         mock_dl.return_value = docx_bytes
         mock_comment.return_value = True
 
-        res = client.post("/api/indico/events/1/contributions/3/scan")
+        res = client.post(
+            "/api/indico/events/1/contributions/3/scan",
+            headers={"Authorization": "Bearer test-internal-token"},
+        )
         assert res.status_code == 200
         data = res.json()
         assert data["doc_type"] == "word"

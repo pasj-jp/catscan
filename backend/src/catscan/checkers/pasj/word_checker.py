@@ -29,9 +29,25 @@ class PasjParts:
     tbl_cap_p: List[Paragraph] = field(default_factory=list)
 
 
+def _is_heading_paragraph(text: str, style_name: str) -> bool:
+    is_list = "箇条書き" in style_name or "07" in style_name
+    if is_list:
+        return False
+    return bool(
+        "章見出し" in style_name
+        or "節見出し" in style_name
+        or "項見出し" in style_name
+        or "04)" in style_name
+        or "05)" in style_name
+        or "06)" in style_name
+        or re.match(r"^\d+(?:\.\d+)*\.?\s", text)
+    )
+
+
 def classify_paragraphs(doc: Document) -> PasjParts:
     parts = PasjParts()
     seen_abstract = False
+    in_abstract = False
     seen_refs = False
     seen_caption_elements = set()
 
@@ -44,6 +60,7 @@ def classify_paragraphs(doc: Document) -> PasjParts:
 
         if "参考文献見出し" in style_name or text == "参考文献" or text.lower() == "references":
             seen_refs = True
+            in_abstract = False
             parts.ref_heading_p = p
             continue
 
@@ -53,6 +70,7 @@ def classify_paragraphs(doc: Document) -> PasjParts:
 
         if "Abstract" in style_name or text.lower() == "abstract":
             seen_abstract = True
+            in_abstract = True
             parts.abstract_heading_p = p
             continue
 
@@ -80,17 +98,22 @@ def classify_paragraphs(doc: Document) -> PasjParts:
             else:
                 parts.eauthor_p.append(p)
         else:
-            if len(parts.abstract_p) == 0 and not ("見出し" in style_name or "heading" in style_name.lower()):
-                parts.abstract_p.append(p)
-                continue
-
-            if "謝辞見出し" in style_name or "063" in style_name or text == "謝辞":
-                continue
-            elif "章見出し" in style_name or "節見出し" in style_name or "項見出し" in style_name or re.match(r"^\d+(?:\.\d+)*\.?\s", text):
-                if not ("箇条書き" in style_name or "07" in style_name):
-                    parts.heading_p.append(p)
+            is_ack = "謝辞見出し" in style_name or "063" in style_name or text == "謝辞"
+            is_heading = _is_heading_paragraph(text, style_name)
+            if in_abstract:
+                if is_ack or is_heading:
+                    in_abstract = False
+                elif len(parts.abstract_p) >= 1 and CJK_RE.search(text) and not ("00)" in style_name and len(parts.abstract_p) == 1):
+                    # Fall through to body if Japanese body text starts without a section heading
+                    in_abstract = False
                 else:
-                    parts.body_p.append(p)
+                    parts.abstract_p.append(p)
+                    continue
+
+            if is_ack:
+                continue
+            elif is_heading:
+                parts.heading_p.append(p)
             elif ("図タイトル" in style_name or re.match(r"^(?:Figure|Fig\.)[\s\xa0]*\d+\s*[:.]", text, re.IGNORECASE)) and not re.match(r"^\([a-z0-9]+\)", text, re.IGNORECASE):
                 parts.fig_cap_p.append(p)
                 seen_caption_elements.add(id(p._p))
@@ -189,7 +212,7 @@ def build_paragraphs_section(body_p: List[Paragraph], rule: WordSectionRule) -> 
 
 
 def build_margins_section(doc: Document, rule: WordSectionRule) -> Dict[str, Any]:
-    sections = check_sections(doc)
+    sections = check_sections(doc, require_a4=True)
     margins_ok = all(s["margins_ok"] and s["col_ok"] for s in sections)
     return {
         "title": rule.title,
@@ -238,13 +261,26 @@ def build_summary(parts: PasjParts, doc: Document, rules: WordRules) -> Dict[str
         },
     )
 
-    summary["Abstract"] = evaluate_section(
+    abstract_section = evaluate_section(
         rules.sections["Abstract"],
         {
             "heading": to_element(parts.abstract_heading_p) if parts.abstract_heading_p else None,
             "body": [to_element(p) for p in parts.abstract_p],
         },
     )
+    if len(parts.abstract_p) > 1:
+        multi_para_msg = "要旨（Abstract）は改行なしの一段落のみで記述してください"
+        for detail in abstract_section["details"][2:]:
+            detail["ok"] = False
+            detail["lang_ok"] = False
+            existing_notes = detail.get("notes", "")
+            detail["notes"] = (
+                f"{existing_notes} / {multi_para_msg}"
+                if existing_notes and existing_notes != rules.sections["Abstract"].elements[1].pass_message
+                else multi_para_msg
+            )
+        abstract_section["ok"] = False
+    summary["Abstract"] = abstract_section
 
     summary["Headings"] = evaluate_section(
         rules.sections["Headings"],

@@ -1,9 +1,9 @@
 import io
 import re
-from typing import Any
 from docx import Document
 
 from .base import Checker
+from .latex.engine import RuleBasedLatexChecker, decode_tex_bytes
 from ..settings import get_settings
 
 TEMPLATE_NAMES: dict[str, str] = {
@@ -16,7 +16,7 @@ CJK_RE = re.compile(r"[\u3040-\u30ff\u4e00-\u9faf]")
 
 def detect_template(data: bytes, doc_type: str = "word") -> str:
     if doc_type == "latex":
-        text = data.decode("utf-8", errors="replace")
+        text = decode_tex_bytes(data)
         if re.search(r"\\documentclass(?:\s*\[[^\]]*\])?\s*\{[^}]*pasj", text, re.IGNORECASE):
             return "pasj"
         if "\\jtitle" in text or "\\jauthor" in text:
@@ -49,7 +49,6 @@ def detect_latex_template(data: bytes | str) -> str:
 def _build_checkers() -> dict[tuple[str, str], Checker]:
     from .jacow.word_checker import JacowWordChecker
     from .pasj.word_checker import PasjWordChecker
-    from .latex_engine import RuleBasedLatexChecker
 
     settings = get_settings()
     return {

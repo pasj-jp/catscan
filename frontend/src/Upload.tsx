@@ -7,10 +7,15 @@ import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "./i18n";
 
 type UploadState = "idle" | "uploading" | "processing" | "success" | "error";
+type TemplateChoice = 'auto' | 'pasj' | 'jacow';
 
 const allowedExtensions: Accept = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-    "application/x-tex": [".tex"]
+    "application/x-tex": [".tex"],
+    "application/zip": [".zip"],
+    "application/x-zip-compressed": [".zip"],
+    "application/gzip": [".tar.gz", ".tgz"],
+    "application/x-gzip": [".tar.gz", ".tgz"],
 };
 
 type UploadProps = {
@@ -18,9 +23,9 @@ type UploadProps = {
 }
 
 const Upload: React.FC<UploadProps> = (props) => {
-    const { t, language } = useLanguage();
+    const { t } = useLanguage();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [selectedTemplate, setSelectedTemplate] = React.useState<'jacow' | 'pasj'>('pasj');
+    const [selectedTemplate, setSelectedTemplate] = React.useState<TemplateChoice>('auto');
     const [progress, setProgress] = React.useState(0);
     const [upload, setUpload] = React.useState<UploadState>('idle');
     const [error, setError] = React.useState<string>('');
@@ -30,40 +35,47 @@ const Upload: React.FC<UploadProps> = (props) => {
         multiple: false,
     };
 
+    const applyScanResponse = (data: any, fallbackFilename?: string) => {
+        if (data.error && !data.scores) {
+            setUpload("error");
+            setError(data.error);
+            return;
+        }
+        if (data.report_type === 'latex') {
+            setUpload("success");
+            props.setReport({
+                type: "latex",
+                report: {
+                    filename: data.filename || fallbackFilename || "document.tex",
+                    content: data.body,
+                    isAbbreviated: data.isabbreviated,
+                    unabbreviated: data.unabbreviated,
+                    issuesFound: data.issuesFound,
+                    detected_template: data.detected_template,
+                    template_name: data.template_name,
+                    total_references: data.total_references,
+                    issues: data.issues,
+                },
+            });
+        } else {
+            setUpload("success");
+            props.setReport({ type: "word", report: data });
+        }
+        if (data.report_id) {
+            setSearchParams({ results: data.report_id });
+        }
+    };
+
     // Load saved report by ID if present in URL query (?results=...)
     React.useEffect(() => {
         const resultsId = searchParams.get("results");
         if (resultsId) {
             setUpload("processing");
             api.get(`/api/reports/${resultsId}`)
-                .then((response) => {
-                    if (response.data.error && !response.data.scores) {
-                        setUpload("error");
-                        setError(response.data.error);
-                    } else if (response.data.report_type === 'latex') {
-                        setUpload("success");
-                        props.setReport({
-                            type: "latex",
-                            report: {
-                                filename: response.data.filename,
-                                content: response.data.body,
-                                isAbbreviated: response.data.isabbreviated,
-                                unabbreviated: response.data.unabbreviated,
-                                issuesFound: response.data.issuesFound,
-                                detected_template: response.data.detected_template,
-                                template_name: response.data.template_name,
-                                total_references: response.data.total_references,
-                                issues: response.data.issues,
-                            },
-                        });
-                    } else {
-                        setUpload("success");
-                        props.setReport({ type: "word", report: response.data });
-                    }
-                })
+                .then((response) => applyScanResponse(response.data))
                 .catch(() => {
                     setUpload("error");
-                    setError("Unable to retrieve report from this server.");
+                    setError(t('reportLoadError'));
                 });
         }
     }, [searchParams]);
@@ -75,11 +87,11 @@ const Upload: React.FC<UploadProps> = (props) => {
     };
 
     const { getRootProps, getInputProps, acceptedFiles } = useDropzone(opts);
-    const scanWordDirect = (file: File) => {
+    const scanMultipart = (endpoint: string, file: File) => {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("template", selectedTemplate);
-        return api.post("/api/scan/word", formData, {
+        return api.post(endpoint, formData, {
             headers: {
                 "Content-Type": "multipart/form-data"
             },
@@ -91,7 +103,7 @@ const Upload: React.FC<UploadProps> = (props) => {
         });
     };
 
-    const uploadLaTeX = async (content: string, template: 'jacow' | 'pasj') => {
+    const uploadLaTeX = async (content: string, template: TemplateChoice) => {
         return api({
             onUploadProgress: (progressEvent) => {
                 if (progressEvent.progress !== undefined) {
@@ -115,48 +127,27 @@ const Upload: React.FC<UploadProps> = (props) => {
         try {
             if (acceptedFiles.length > 0) {
                 setUpload("uploading");
-                const isDocx = acceptedFiles[0].type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || acceptedFiles[0].name.toLowerCase().endsWith(".docx");
+                const file = acceptedFiles[0];
+                const lowerName = file.name.toLowerCase();
+                const isDocx = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || lowerName.endsWith(".docx");
+                const isArchive = lowerName.endsWith(".zip") || lowerName.endsWith(".tar.gz") || lowerName.endsWith(".tgz");
 
                 if (isDocx) {
                     setUpload("processing");
-                    const response = await scanWordDirect(acceptedFiles[0]);
-
-                    if (response.data.error !== undefined && response.data.scores === undefined) {
-                        setUpload("error");
-                        setError(response.data.error);
-                    } else {
-                        setUpload("success");
-                        props.setReport({ type: "word", report: response.data });
-                        if (response.data.report_id) {
-                            setSearchParams({ results: response.data.report_id });
-                        }
-                    }
+                    const response = await scanMultipart("/api/scan/word", file);
+                    applyScanResponse(response.data, file.name);
+                } else if (isArchive) {
+                    setUpload("processing");
+                    const response = await scanMultipart("/api/scan/file", file);
+                    applyScanResponse(response.data, file.name);
                 } else {
-                    const content = await acceptedFiles[0].text();
+                    const content = await file.text();
                     const response = await uploadLaTeX(content, selectedTemplate);
-
                     if (response.status !== 200) {
                         setUpload("error");
                         setError(response.data);
                     } else {
-                        setUpload("success");
-                        props.setReport({
-                            type: "latex",
-                            report: {
-                                filename: acceptedFiles[0].name,
-                                content: response.data.body,
-                                isAbbreviated: response.data.isabbreviated,
-                                unabbreviated: response.data.unabbreviated,
-                                issuesFound: response.data.issuesFound,
-                                detected_template: response.data.detected_template,
-                                template_name: response.data.template_name,
-                                total_references: response.data.total_references,
-                                issues: response.data.issues,
-                            }
-                        });
-                        if (response.data.report_id) {
-                            setSearchParams({ results: response.data.report_id });
-                        }
+                        applyScanResponse(response.data, file.name);
                     }
                 }
             }
@@ -186,7 +177,7 @@ const Upload: React.FC<UploadProps> = (props) => {
                             </p>
                         </div>
 
-                        {/* Format Selection (Manual choice between JACoW English and PASJ Japanese) */}
+                        {/* Format Selection (Auto / PASJ Japanese / JACoW English) */}
                         <div className="form-group mb-4">
                             <label className="font-weight-bold text-secondary mb-2 d-block">
                                 {t('templateLabel')}
@@ -194,9 +185,17 @@ const Upload: React.FC<UploadProps> = (props) => {
                             <div className="btn-group btn-group-toggle w-100 shadow-sm" role="group">
                                 <button
                                     type="button"
+                                    className={`btn py-2 ${selectedTemplate === 'auto' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'}`}
+                                    onClick={() => setSelectedTemplate('auto')}
+                                    style={{ width: '30%' }}
+                                >
+                                    <i className="fas fa-magic mr-2"></i> {t('templateAuto')}
+                                </button>
+                                <button
+                                    type="button"
                                     className={`btn py-2 ${selectedTemplate === 'pasj' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'}`}
                                     onClick={() => setSelectedTemplate('pasj')}
-                                    style={{ width: '50%' }}
+                                    style={{ width: '35%' }}
                                 >
                                     <i className="fas fa-file-alt mr-2"></i> {t('templatePasj')}
                                 </button>
@@ -204,14 +203,18 @@ const Upload: React.FC<UploadProps> = (props) => {
                                     type="button"
                                     className={`btn py-2 ${selectedTemplate === 'jacow' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'}`}
                                     onClick={() => setSelectedTemplate('jacow')}
-                                    style={{ width: '50%' }}
+                                    style={{ width: '35%' }}
                                 >
                                     <i className="fas fa-globe mr-2"></i> {t('templateJacow')}
                                 </button>
                             </div>
                             <small className="form-text text-muted mt-2">
                                 <i className="fas fa-info-circle mr-1"></i>
-                                {selectedTemplate === 'pasj' ? t('templatePasjDesc') : t('templateJacowDesc')}
+                                {selectedTemplate === 'auto'
+                                    ? t('templateAutoDesc')
+                                    : selectedTemplate === 'pasj'
+                                        ? t('templatePasjDesc')
+                                        : t('templateJacowDesc')}
                             </small>
                         </div>
 

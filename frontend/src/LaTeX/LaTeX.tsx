@@ -211,12 +211,14 @@ const LaTeX: React.FC<ReportProps> = (props) => {
                                         {parsedIssues.map((issue, idx) => {
                                             const categoryLabel = getCategoryBadge(issue.target, language);
                                             let displayDesc = issue.description;
-                                            if (displayDesc.includes(' / ')) {
-                                                const parts = displayDesc.split(' / ');
-                                                if (parts.length === 2 && /[^\x00-\x7F]/.test(parts[0])) {
+                                            const sepIdx = displayDesc.indexOf(' / ');
+                                            if (sepIdx !== -1) {
+                                                const jaPart = displayDesc.slice(0, sepIdx);
+                                                const enPart = displayDesc.slice(sepIdx + 3);
+                                                if (/[^\x00-\x7F]/.test(jaPart)) {
                                                     displayDesc = language === 'ja'
-                                                        ? `${parts[0]}\n(${parts[1]})`
-                                                        : `${parts[1]}\n(${parts[0]})`;
+                                                        ? `${jaPart}\n(${enPart})`
+                                                        : `${enPart}\n(${jaPart})`;
                                                 }
                                             }
                                             return (

@@ -1,5 +1,5 @@
 import pytest
-from catscan.checkers.latex_engine import RuleBasedLatexChecker
+from catscan.checkers.latex.engine import RuleBasedLatexChecker
 from catscan.checkers.jacow.word_checker import JacowWordChecker
 from catscan.checkers.pasj.word_checker import PasjWordChecker
 from .conftest import load_example

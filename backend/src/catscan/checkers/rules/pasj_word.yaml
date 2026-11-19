@@ -52,6 +52,12 @@ sections:
             contains: ["和文タイトル", "011"]
             key: "style_ok"
             fail_message: "スタイル「011) pasj-和文タイトル」を設定してください"
+          - check: "font"
+            name: ["ＭＳ Ｐゴシック", "MS PGothic"]
+            size: 14.0
+            alignment: "CENTER"
+            key: "style_ok"
+            fail_message: "和文タイトルの書式が規定と異なります（MSPゴシック・14 pt・中央揃え）"
           - check: "has_cjk"
             key: "lang_ok"
             fail_message: "和文タイトルに日本語文字が含まれていません"
@@ -67,6 +73,13 @@ sections:
             contains: ["英文タイトル", "012"]
             key: "style_ok"
             fail_message: "スタイル「012) pasj-英文タイトル」を設定してください"
+          - check: "font"
+            name: ["Times New Roman", "Times"]
+            size: 12.0
+            bold: true
+            alignment: "CENTER"
+            key: "style_ok"
+            fail_message: "英文タイトルの書式が規定と異なります（Times系・12 pt・太字・中央揃え）"
           - check: "no_cjk"
             key: "lang_ok"
             fail_message: "英文タイトルに日本語文字が含まれています"
@@ -134,6 +147,11 @@ sections:
             contains: ["著者", "020"]
             key: "style_ok"
             fail_message: "スタイル「020) pasj-著者」を設定してください"
+          - check: "font"
+            size: 10.0
+            alignment: "CENTER"
+            key: "style_ok"
+            fail_message: "和文著者名の書式が規定と異なります（10 pt・中央揃え）"
 
       - role: "eauthor"
         type: "英文著者・所属 (English Authors / Affiliation)"
@@ -151,6 +169,12 @@ sections:
             contains: ["著者", "020"]
             key: "style_ok"
             fail_message: "スタイル「020) pasj-著者」を設定してください"
+          - check: "font"
+            name: ["Times", "Times New Roman"]
+            size: 10.0
+            alignment: "CENTER"
+            key: "style_ok"
+            fail_message: "英文著者・所属の書式が規定と異なります（Times系・10 pt・中央揃え）"
 
     rules:
       jauthor:
@@ -204,12 +228,18 @@ sections:
             contains: ["Abstract", "03"]
             key: "heading_ok"
             fail_message: "見出しは「Abstract」（スタイル「03) pasj-Abstract見出し」）としてください"
+          - check: "font"
+            name: ["Times New Roman", "Times"]
+            size: 12.0
+            italic: true
+            key: "heading_ok"
+            fail_message: "Abstract見出しの書式が規定と異なります（Times系・12 pt・斜体）"
 
       - role: "body"
         type: "Abstract本文 (English Body)"
         required: true
         truncate: 140
-        scoring_keys: ["lang_ok"]
+        scoring_keys: ["lang_ok", "style_ok"]
         pass_message: "適合 (英語1段落・10 pt)"
         missing_message: "英文要旨（Abstract本文）が検出されませんでした"
         missing_text: "未検出 (Missing English Abstract Body)"
@@ -217,6 +247,12 @@ sections:
           - check: "no_cjk"
             key: "lang_ok"
             fail_message: "要旨（Abstract）に日本語文字が含まれています。和文原稿でも要旨は全編英語で記述してください"
+          - check: "font"
+            name: ["Times", "Times New Roman"]
+            size: 10.0
+            alignment: "JUSTIFY"
+            key: "style_ok"
+            fail_message: "Abstract本文の書式が規定と異なります（Times系・10 pt・両端揃え）"
 
     rules:
       heading:
@@ -267,7 +303,7 @@ sections:
             key: "number_ok"
             fail_message: "見出しの先頭に連番（1., 1.1 等）がありません"
           - check: "style_contains"
-            contains: ["pasj", "見出し"]
+            contains: ["章見出し", "節見出し", "項見出し", "04)", "05)", "06)"]
             key: "style_ok"
             fail_message: "PASJ標準の見出しスタイル（04/05/06）を使用してください"
 
@@ -366,6 +402,11 @@ sections:
             contains: ["図タイトル", "21", "22", "caption"]
             key: "style_ok"
             fail_message: "スタイル「21) pasj-図タイトル1行」または「22) pasj-図タイトル複数行」を設定してください"
+          - check: "font"
+            name: ["Times", "Times New Roman"]
+            size: 10.0
+            key: "style_ok"
+            fail_message: "図キャプションの書式が規定と異なります（Times系・10 pt）"
 
     rules:
       single:
@@ -425,6 +466,11 @@ sections:
             contains: ["表タイトル", "31", "32", "caption"]
             key: "style_ok"
             fail_message: "スタイル「31) pasj-表タイトル1行」または「32) pasj-表タイトル複数行」を設定してください"
+          - check: "font"
+            name: ["Times", "Times New Roman"]
+            size: 10.0
+            key: "style_ok"
+            fail_message: "表タイトルの書式が規定と異なります（Times系・10 pt）"
 
     rules:
       single:
@@ -478,7 +524,7 @@ sections:
             key: "doi_ok"
             fail_message: "DOI または URL の末尾に不要なピリオド（.）があります"
           - check: "style_contains"
-            contains: ["参考文献", "pasj"]
+            contains: ["参考文献", "062)"]
             key: "style_ok"
             fail_message: "スタイル「062) pasj-参考文献」を設定してください"
 

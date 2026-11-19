@@ -6,6 +6,7 @@ The schemas serve two purposes:
     clear error message pointing at the offending key;
   * give the checker code typed access to the configuration.
 """
+import html
 import re
 from typing import Any, Dict, List, Literal, Optional, Union
 
@@ -38,12 +39,12 @@ class HeaderCell(Strict):
     def to_html(self) -> str:
         attrs = ""
         if self.width:
-            attrs += f' style="width: {self.width};"'
+            attrs += f' style="width: {html.escape(self.width, quote=True)};"'
         if self.center:
             attrs += ' class="text-center"'
         if self.colspan:
-            attrs += f' colspan="{self.colspan}"'
-        return f"<th{attrs}>{self.label}</th>"
+            attrs += f' colspan="{int(self.colspan)}"'
+        return f"<th{attrs}>{html.escape(self.label)}</th>"
 
 
 class ExtraInfo(Strict):

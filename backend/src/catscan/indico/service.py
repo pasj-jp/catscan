@@ -11,14 +11,22 @@ logger = logging.getLogger("catscan.indico.service")
 
 
 def _pick_source_file(files: List[Dict[str, Any]]) -> Tuple[Dict[str, Any], str]:
-    """Find the first Word or LaTeX source file in the files list."""
+    """Find the editable Word, LaTeX, or source archive file in the revision."""
     for f in files:
         fname = f.get("filename", "").lower()
         if fname.endswith(".docx"):
             return f, "word"
-        elif fname.endswith(".tex"):
+    for f in files:
+        fname = f.get("filename", "").lower()
+        if fname.endswith(".tex"):
             return f, "latex"
-    raise DocumentError("No editable Word (.docx) or LaTeX (.tex) source file found in revision.")
+    for f in files:
+        fname = f.get("filename", "").lower()
+        if fname.endswith((".zip", ".tar.gz", ".tgz")):
+            return f, "archive"
+    raise DocumentError(
+        "No editable Word (.docx), LaTeX (.tex), or source archive (.zip/.tar.gz) found in revision."
+    )
 
 
 class IndicoScanService:
@@ -28,7 +36,18 @@ class IndicoScanService:
     """
 
     def __init__(self, client: Optional[IndicoClient] = None, config: Optional[Any] = None):
+        self._owns_client = client is None
         self.client = client or IndicoClient()
+
+    def close(self) -> None:
+        if self._owns_client and hasattr(self.client, "close"):
+            self.client.close()
+
+    def __enter__(self) -> "IndicoScanService":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def list_papers(self, event_id: int) -> List[Dict[str, Any]]:
         """List all paper contributions for an event."""
@@ -53,7 +72,7 @@ class IndicoScanService:
         rev_id = latest_rev["id"]
         files = latest_rev.get("files", [])
 
-        target_file, doc_type = _pick_source_file(files)
+        target_file, _ = _pick_source_file(files)
         filename = target_file["filename"]
         download_url = target_file.get("download_url") or target_file.get("external_download_url")
         if not download_url:
@@ -72,6 +91,7 @@ class IndicoScanService:
             template=template or "auto",
             extra=extra,
         )
+        doc_type = result["report_type"]
 
         settings = get_settings()
         report_url = f"{settings.catscan_base_url}/?results={result['report_id']}"

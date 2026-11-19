@@ -9,6 +9,7 @@ from indico.core.plugins import IndicoPlugin
 from indico.modules.events.editing.models.editable import EditableType
 from indico.modules.events.editing.models.revisions import EditingRevision, RevisionType
 from indico.web.forms.base import IndicoForm
+from indico.web.forms.fields import IndicoPasswordField
 from wtforms.fields import BooleanField, StringField
 from wtforms.validators import DataRequired
 
@@ -21,16 +22,17 @@ class SettingsForm(IndicoForm):
     api_url = StringField(
         _('CatScan Internal API URL'),
         [DataRequired()],
-        description=_('Internal HTTP URL to the CatScan backend service (default: http://127.0.0.1:8000)'),
+        description=_('Internal HTTP URL to the CatScan backend service (e.g. http://127.0.0.1:8001)'),
     )
     auto_scan = BooleanField(
         _('Auto-scan on manuscript upload'),
         default=True,
         description=_('Automatically trigger CatScan review whenever an author submits or updates a paper manuscript.'),
     )
-    token = StringField(
-        _('CatScan API Token (Optional)'),
-        description=_('Optional bearer token or shared secret if CatScan requires authentication.'),
+    token = IndicoPasswordField(
+        _('CatScan Internal API Token'),
+        toggle=True,
+        description=_('Bearer token matching CATSCAN_INTERNAL_TOKEN on the CatScan backend.'),
     )
 
 

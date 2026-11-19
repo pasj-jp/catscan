@@ -11,6 +11,10 @@ class DocumentError(CatScanError):
     status_code: int = 400
 
 
+class AuthenticationError(CatScanError):
+    status_code: int = 401
+
+
 class ReportNotFoundError(CatScanError):
     status_code: int = 404
 

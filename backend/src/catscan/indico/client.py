@@ -24,8 +24,12 @@ class IndicoClient:
         self.timeout = timeout if timeout is not None else settings.indico_timeout
         self._client = httpx.Client(
             base_url=self.base_url,
-            headers=self._get_headers(),
+            headers={
+                "Authorization": f"Bearer {self.api_token}",
+                "Accept": "application/json",
+            },
             timeout=self.timeout,
+            follow_redirects=True,
         )
 
     def _get_headers(self) -> Dict[str, str]:

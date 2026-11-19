@@ -25,6 +25,17 @@ def trigger_catscan_scan(self, api_url: str, event_id: int, contribution_id: int
             json={"post_comment": True},
             timeout=120,
         )
+        if 400 <= resp.status_code < 500 and resp.status_code != 429:
+            logger.warning(
+                f"[CatScan Plugin] Non-retryable client error HTTP {resp.status_code} "
+                f"for Event {event_id}, Contribution {contribution_id}: {resp.text}"
+            )
+            return {
+                "status": "skipped",
+                "http_status": resp.status_code,
+                "detail": resp.text,
+            }
+
         if resp.status_code != 200:
             logger.warning(f"[CatScan Plugin] API response HTTP {resp.status_code}: {resp.text}")
             resp.raise_for_status()
@@ -35,6 +46,6 @@ def trigger_catscan_scan(self, api_url: str, event_id: int, contribution_id: int
             f"Report ID: {res_data.get('report_id')}, Template: {res_data.get('template')}"
         )
         return res_data
-    except Exception as exc:
+    except requests.RequestException as exc:
         logger.error(f"[CatScan Plugin] Failed to trigger CatScan: {exc}")
         raise self.retry(exc=exc)
