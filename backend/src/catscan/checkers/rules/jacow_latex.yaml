@@ -18,10 +18,31 @@
 #  Tip: always write regexes in 'single quotes' so backslashes stay as-is.
 # =============================================================================
 
-report:
-  issue_format: "Issue found in reference {name}: {message}"
+targets:
+  documentclass:
+    regex: '\\documentclass\b\s*(?:\[[^]]*\]\s*)?\{([^{}]+)\}'
+  abstract:
+    macro: abstract
+    env: abstract
+    strip_comments: true
+
+captions:
+  figure:
+    envs: [figure, 'figure*']
+    name: figure caption
 
 rules:
+  - issue: INCORRECT_DOCUMENT_CLASS
+    target: documentclass
+    missing: true
+    not_match: '^\s*jacow(?:[-_]?\d{4})?\s*$'
+    ignore_case: true
+  - issue: ABSTRACT_CITATION
+    target: abstract
+    match: '\\(?:cite|citep|citet|parencite|textcite|autocite)\b'
+  - issue: MISSING_FIGURE_CAPTION
+    scope: figure
+    missing: true
   - issue: ET_AL_NOT_WRAPPED
     scope: bibitem
     target: original
@@ -63,6 +84,11 @@ rules:
     check: doi_online
 
 messages:
+  INCORRECT_DOCUMENT_CLASS: 'Use the official JACoW document class (\documentclass{jacow}).'
+  ABSTRACT_CITATION: Move citations from the abstract to the main text.
+  MISSING_FIGURE_CAPTION: Add a caption to this figure.
+  UNDEFINED_REFERENCE: Define the missing label or correct the reference to it.
+  UNDEFINED_CITATION: Add the missing bibliography entry or correct the citation key.
   INCORRECT_STYLE_REFERENCE: >-
     Reference does not appear to be in the JACoW style, please adjust your reference style
     to be consistent with the JACoW style reference, please see https://www.jacow.org/Authors/FormattingCitations

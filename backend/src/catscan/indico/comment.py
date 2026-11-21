@@ -1,5 +1,6 @@
-import re
 from typing import Any, Dict, List
+
+from ..checkers.common.score import detail_rows, row_checks
 
 PASJ_CATEGORY_LABELS: Dict[str, str] = {
     "Title": "Title (題名)",
@@ -21,7 +22,7 @@ LABELS = {
         "category_summary": "#### Category Summary / 検査項目別サマリー",
         "key_issues": "#### Key Issues Detected / 要修正・確認事項",
         "report_link": "View Full Interactive Validation Report / 詳細検証レポートを開く",
-        "latex_passed": "✅ **すべての書式、句読点、英文要旨および参考文献が {template_name} 執筆規定を満たしています。**",
+        "latex_passed": "✅ **{template_name} の LaTeX ソース検査で問題は検出されませんでした。**",
         "latex_detected_issues": "#### Detected Issues / 検出された要修正項目",
     },
     "jacow": {
@@ -29,78 +30,44 @@ LABELS = {
         "category_summary": "#### Category Summary",
         "key_issues": "#### Key Issues Detected",
         "report_link": "View Full Interactive Validation Report",
-        "latex_passed": "✅ **All references and formatting comply with {template_name} rules.**",
+        "latex_passed": "✅ **The {template_name} LaTeX source checks found no issues.**",
         "latex_detected_issues": "#### Detected Issues",
     },
 }
 
 
-def _extract_word_diagnostic_notes(result: Dict[str, Any], is_pasj: bool) -> List[str]:
-    notes: List[str] = []
-    summary = result.get("summary", {})
-    if not isinstance(summary, dict):
-        return notes
-
-    for cat, sec in summary.items():
-        if not isinstance(sec, dict) or cat == "List" or sec.get("ok") is True:
+def _word_notes(result: Dict[str, Any], is_pasj: bool) -> List[str]:
+    notes = []
+    for category, section in result.get("summary", {}).items():
+        if category == "List" or section.get("ok") is True:
             continue
+        label = PASJ_CATEGORY_LABELS.get(category, category) if is_pasj else category
+        section_notes = []
+        for row in detail_rows(section.get("details")):
+            checks = dict(row_checks(row))
+            if all(verdict is True for verdict in checks.values()) and row.get("ok") is not False:
+                continue
+            location = f"{row['location']} — " if row.get("location") else ""
+            message = row.get("notes") or row.get("text_error") or row.get("status")
+            if message:
+                section_notes.append(location + message)
+                continue
+            if checks.get("case_ok") is False:
+                section_notes.append("Check the title capitalization.")
+            if checks.get("used_ok") is False and category == "References":
+                section_notes.append(f"Reference [{row.get('id', '?')}] is not cited in the manuscript.")
+            section_notes.extend(str(row[key]) for key in checks if isinstance(row[key], str))
 
-        cat_label = PASJ_CATEGORY_LABELS.get(cat, cat) if is_pasj else cat
-        details = sec.get("details", [])
-        if not isinstance(details, list):
-            continue
-
-        if is_pasj:
-            if cat == "Paragraphs":
-                for d in details:
-                    if isinstance(d, dict) and d.get("punct_ok") is False:
-                        notes.append(f"❌ **{cat_label}**: {d.get('item')} — {d.get('status')}")
-            else:
-                for d in details:
-                    if isinstance(d, dict) and (d.get("ok") is False or d.get("style_ok") is False):
-                        item_type = d.get("type") or d.get("text", "")[:30]
-                        note_msg = d.get("notes") or "書式またはスタイル違反"
-                        notes.append(f"❌ **{cat_label}** (`{item_type}`): {note_msg}")
+        unique_notes = list(dict.fromkeys(section_notes))
+        if unique_notes:
+            message = " · ".join(unique_notes[:3])
+            if len(unique_notes) > 3:
+                message += f" (+{len(unique_notes) - 3} more)"
         else:
-            sec_ok = sec.get("ok")
-            icon = "❌" if sec_ok is False else "⚠️"
-            cat_issues: List[str] = []
-            flat_details: List[Dict[str, Any]] = []
-            for d in details:
-                if isinstance(d, list):
-                    flat_details.extend(x for x in d if isinstance(x, dict))
-                elif isinstance(d, dict):
-                    flat_details.append(d)
-
-            for d in flat_details:
-                if d.get("case_ok") is False:
-                    cat_issues.append("Title capitalization check failed (requires >=70% UPPERCASE)")
-                if d.get("text_error"):
-                    cat_issues.append(str(d["text_error"]))
-                if d.get("text_format_message"):
-                    tfm = d["text_format_message"]
-                    if isinstance(tfm, list):
-                        cat_issues.extend(str(m) for m in tfm)
-                    else:
-                        cat_issues.append(str(tfm))
-                if d.get("used_ok") is False:
-                    cat_issues.append(f"Item #{d.get('id', '?')} is not cited in the main text")
-                if d.get("order_ok") is False:
-                    cat_issues.append(f"Item #{d.get('id', '?')} citation order mismatch")
-                for k, v in d.items():
-                    if k != "text" and isinstance(v, str) and "should be" in v:
-                        cat_issues.append(f"`{k}` ({v})")
-
-            unique_issues = list(dict.fromkeys(cat_issues))
-            if unique_issues:
-                preview = "; ".join(unique_issues[:3])
-                if len(unique_issues) > 3:
-                    preview += f" (+{len(unique_issues) - 3} more)"
-                notes.append(f"{icon} **{cat_label}**: {preview}")
-            else:
-                sc = result.get("scores", {}).get(cat, (0, 0, 0))
-                notes.append(f"{icon} **{cat_label}**: {sc[2]} errors, {sc[1]} warnings detected")
-
+            _, warnings, errors = result["scores"].get(category, (0, 0, 0))
+            message = f"{errors} errors, {warnings} warnings detected"
+        icon = "⚠️" if section.get("ok") == 2 else "❌"
+        notes.append(f"{icon} **{label}**: {message}")
     return notes
 
 
@@ -147,7 +114,7 @@ def _render_word(result: Dict[str, Any], report_url: str, is_pasj: bool, labels:
             cat_label = PASJ_CATEGORY_LABELS.get(cat, cat) if is_pasj else cat
             lines.append(f"| **{cat_label}** | {cat_status} | {p_cnt} | {w_cnt} | {e_cnt} |")
 
-    diag_notes = _extract_word_diagnostic_notes(result, is_pasj=is_pasj)
+    diag_notes = _word_notes(result, is_pasj=is_pasj)
     if diag_notes:
         lines.append("")
         lines.append(labels["key_issues"])
@@ -161,13 +128,21 @@ def _render_word(result: Dict[str, Any], report_url: str, is_pasj: bool, labels:
     return "\n".join(lines)
 
 
+def _table_cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
 def _render_latex(result: Dict[str, Any], report_url: str, is_pasj: bool, labels: Dict[str, str]) -> str:
     filename = result.get("filename", "manuscript")
     template_name = result.get("template_name", "JACoW Style")
-    issues_found = result.get("issuesFound", 0)
+    issues = result["issues"]
+    issues_found = len(issues)
     total_refs = result.get("total_references", 0)
+    notices = result.get("coverage_notices", [])
 
-    if issues_found == 0:
+    if issues_found == 0 and notices:
+        status_str = "⚠️ **CHECKS INCOMPLETE / 未検査あり**" if is_pasj else "⚠️ **CHECKS INCOMPLETE**"
+    elif issues_found == 0:
         status_str = labels["status_passed"]
     else:
         status_str = (
@@ -177,69 +152,53 @@ def _render_latex(result: Dict[str, Any], report_url: str, is_pasj: bool, labels
         )
 
     lines = [
-        "### 🐱 CatScan Automated Reference & Style Validation",
+        "### 🐱 CatScan Automated Format Validation",
         f"- **Document**: `{filename}` ({template_name})",
         f"- **Validation Status**: {status_str}",
         f"- **References Inspected**: {total_refs} | **Formatting Issues Found**: **{issues_found}**",
         "",
     ]
 
-    if issues_found == 0:
+    if notices:
+        lines.append("**未検査の項目 / Incomplete checks**" if is_pasj else "**Incomplete checks**")
+        for notice in notices[:10]:
+            message = notice.get("message_ja") if is_pasj else notice.get("message")
+            path = notice.get("file")
+            prefix = f"{path}:{notice['line']} " if path and notice.get("line") else ""
+            lines.append(f"- {prefix}{message or notice.get('message', '')}")
+        if len(notices) > 10:
+            lines.append(f"*...and {len(notices) - 10} more notices in the full interactive report.*")
+        lines.append("")
+
+    if issues_found == 0 and not notices:
         lines.append(labels["latex_passed"].format(template_name=template_name))
-    else:
+    elif issues_found:
         lines.append(labels["latex_detected_issues"])
         lines.append("| # | Category / Target | Violation Details & Suggestion |")
         lines.append("| :---: | :--- | :--- |")
 
-        # Prefer structured issues if present
-        structured_issues = result.get("issues")
-        if structured_issues is not None:
-            for idx, item in enumerate(structured_issues[:10], 1):
-                target = item.get("name", "issue").strip()
-                desc = item.get("message", "").strip()
-                if " / " in desc:
-                    ja_part, en_part = desc.split(" / ", 1)
-                    desc_display = ja_part.strip() if is_pasj else en_part.strip()
-                else:
-                    desc_display = desc
-                desc_display = desc_display.replace("|", "\\|").replace("\n", " ")
-                lines.append(f"| {idx} | `{target}` | {desc_display} |")
-            if len(structured_issues) > 10:
-                lines.append("")
-                lines.append(f"*...and {len(structured_issues) - 10} more issues in the full interactive report.*")
-        else:
-            body = result.get("unabbreviated") or result.get("body", "No issues found")
-            issue_blocks = [b.strip() for b in body.split("\n\n") if b.strip()]
-            for idx, block in enumerate(issue_blocks[:10], 1):
-                m = re.match(r'^Issue found in\s+([^:]+):\s*([\s\S]*)$', block)
-                if m:
-                    target = m.group(1).strip()
-                    desc = m.group(2).strip()
-                    if " / " in desc:
-                        ja_part, en_part = desc.split(" / ", 1)
-                        desc_display = ja_part.strip() if is_pasj else en_part.strip()
-                    else:
-                        desc_display = desc
-                    desc_display = desc_display.replace("|", "\\|").replace("\n", " ")
-                    lines.append(f"| {idx} | `{target}` | {desc_display} |")
-                else:
-                    clean_b = block.replace("|", "\\|").replace("\n", " ")
-                    lines.append(f"| {idx} | `issue` | {clean_b} |")
-            if len(issue_blocks) > 10:
-                lines.append("")
-                lines.append(f"*...and {len(issue_blocks) - 10} more issues in the full interactive report.*")
+        for index, issue in enumerate(issues[:10], 1):
+            target = _table_cell(issue["name"])
+            message = issue["message"]
+            if is_pasj:
+                message = issue.get("message_ja", message)
+            if issue.get("file") and issue.get("line"):
+                message = f"{issue['file']}:{issue['line']} — {message}"
+            lines.append(f"| {index} | {target} | {_table_cell(message)} |")
+        if issues_found > 10:
+            lines.append(f"\n*...and {issues_found - 10} more issues in the full interactive report.*")
 
     lines.append("")
     lines.append(f"👉 [**{labels['report_link']}**]({report_url})")
     return "\n".join(lines)
 
 
-def render_comment(result: Dict[str, Any], report_url: str, doc_type: str = "word") -> str:
+def render_comment(result: Dict[str, Any], report_url: str) -> str:
     """Format an informative, structured Markdown review comment for the Indico timeline."""
     template_name = result.get("template_name", "JACoW Style")
     is_pasj = result.get("detected_template") == "pasj" or "PASJ" in template_name
     labels = LABELS["pasj"] if is_pasj else LABELS["jacow"]
 
-    if doc_type == "word":
+    if result["report_type"] == "word":
         return _render_word(result, report_url, is_pasj, labels)
     return _render_latex(result, report_url, is_pasj, labels)

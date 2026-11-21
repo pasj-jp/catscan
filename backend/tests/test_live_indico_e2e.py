@@ -88,11 +88,11 @@ def test_live_indico_e2e():
     print(f"  - Report URL: {latex_res['report_url']}")
     print(f"  - Comment Posted to Indico: {latex_res['comment_posted']}")
     print(f"  - References Inspected: {latex_res['result']['total_references']}")
-    print(f"  - Issues Found: {latex_res['result']['issuesFound']}")
+    print(f"  - Issues Found: {len(latex_res['result']['issues'])}")
 
     assert latex_res["doc_type"] == "latex"
     assert latex_res["comment_posted"] is True
-    assert latex_res["result"]["issuesFound"] >= 0
+    assert isinstance(latex_res["result"]["issues"], list)
 
     # Verify report is in reports
     saved_latex_report = reports.load(latex_res["report_id"])

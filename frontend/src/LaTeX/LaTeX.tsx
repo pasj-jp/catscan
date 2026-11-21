@@ -1,26 +1,32 @@
 import React from "react";
 import './Report.css';
-import ReactMarkdown from 'react-markdown';
 import { useLanguage } from "../i18n";
 
-interface StructuredIssue {
+interface SourceLocation {
+    file?: string | null;
+    line?: number | null;
+}
+
+interface StructuredIssue extends SourceLocation {
     name: string;
-    type?: string;
+    category?: string;
     message: string;
-    start?: number | null;
-    end?: number | null;
+    message_ja?: string;
+}
+
+interface CoverageNotice extends SourceLocation {
+    message: string;
+    message_ja?: string;
 }
 
 type LaTeXReport = {
     filename: string,
-    content: string,
-    isAbbreviated: boolean,
-    unabbreviated: string,
-    issuesFound: number,
-    detected_template?: string,
-    template_name?: string,
+    report_type: "latex",
+    detected_template: string,
+    report_id?: string,
     total_references?: number,
-    issues?: StructuredIssue[],
+    issues: StructuredIssue[],
+    coverage_notices: CoverageNotice[],
 };
 
 type ReportProps = {
@@ -28,83 +34,24 @@ type ReportProps = {
     onReset?: () => void,
 };
 
-interface ParsedIssue {
-    target: string;
-    description: string;
-    start?: number | null;
-    end?: number | null;
-}
-
-const getCategoryBadge = (target: string, language: string) => {
-    const t = target.toLowerCase();
-    if (t.includes('documentclass')) {
-        return language === 'ja' ? '文書クラス (documentclass)' : 'Document Class';
-    }
-    if (t.includes('jtitle') || t === 'title') {
-        return language === 'ja' ? '題名・タイトル (title)' : 'Title';
-    }
-    if (t.includes('author') || t.includes('jauthor')) {
-        return language === 'ja' ? '著者名表記 (authors)' : 'Authors';
-    }
-    if (t.includes('abstract')) {
-        return language === 'ja' ? '英文要旨 (abstract)' : 'Abstract';
-    }
-    if (t.includes('punctuation')) {
-        return language === 'ja' ? '本文句読点 (punctuation)' : 'Punctuation';
-    }
-    if (t.includes('figure') || t.includes('fig')) {
-        return language === 'ja' ? '図キャプション (figure)' : 'Figure Caption';
-    }
-    if (t.includes('table') || t.includes('tbl')) {
-        return language === 'ja' ? '表タイトル (table)' : 'Table Title';
-    }
-    if (t.startsWith('reference') || t.includes('bad') || t.includes('ref') || t.includes('pasj_bad')) {
-        return `${language === 'ja' ? '参考文献' : 'Reference'} [${target.replace(/^reference\s+/i, '')}]`;
-    }
-    return target;
+const categories: Record<string, [string, string]> = {
+    documentclass: ['Document Class', '文書クラス'],
+    jtitle: ['Title', '題名'],
+    title: ['Title', '題名'],
+    jauthor: ['Authors', '著者名'],
+    author: ['Authors', '著者名'],
+    abstract: ['Abstract', '英文要旨'],
+    body: ['Body Text', '本文'],
+    figure: ['Figure Caption', '図キャプション'],
+    table: ['Table Title', '表タイトル'],
+    reference: ['Reference', '参考文献'],
+    cross_reference: ['Cross-reference', '相互参照'],
 };
 
-const LaTeX: React.FC<ReportProps> = (props) => {
+const LaTeX: React.FC<ReportProps> = ({ report, onReset }) => {
     const { t, language } = useLanguage();
-    const { report, onReset } = props;
-
-    // Parse issue items from structured `report.issues` or fallback to unabbreviated/content text
-    let parsedIssues: ParsedIssue[] = [];
-
-    if (report.issues && report.issues.length > 0) {
-        parsedIssues = report.issues.map((item, idx) => ({
-            target: item.name ? item.name.trim() : `Issue #${idx + 1}`,
-            description: item.message ? item.message.trim() : "",
-            start: item.start,
-            end: item.end,
-        }));
-    } else {
-        const textToParse = report.unabbreviated || report.content || "";
-        const rawBlocks = textToParse
-            .split("\n\n")
-            .map(s => s.trim())
-            .filter(s => s.length > 0 && s.startsWith("Issue found in "));
-
-        parsedIssues = rawBlocks.map((block, idx) => {
-            const match = block.match(/^Issue found in\s+([^:]+):\s*([\s\S]*)$/);
-            if (match) {
-                return {
-                    target: match[1].trim(),
-                    description: match[2].trim(),
-                };
-            }
-            return {
-                target: `Issue #${idx + 1}`,
-                description: block,
-            };
-        });
-    }
-
-    const textForTemplateCheck = report.unabbreviated || report.content || "";
-    const isPasj = report.detected_template === 'pasj' ||
-                   (report.template_name && report.template_name.includes('PASJ')) ||
-                   textForTemplateCheck.includes('PASJ') ||
-                   (report.issues && report.issues.some(i => (i.type && i.type.includes('PASJ')) || (i.message && i.message.includes('PASJ'))));
+    const { coverage_notices: notices, issues } = report;
+    const isPasj = report.detected_template === 'pasj';
 
     return (
         <div className="py-2">
@@ -158,24 +105,41 @@ const LaTeX: React.FC<ReportProps> = (props) => {
                 )}
             </div>
 
-            {/* Results Section */}
-            {report.issuesFound === 0 ? (
+            {notices.length > 0 ? (
+                <section className="alert alert-warning mb-4" aria-labelledby="latex-coverage">
+                    <h5 id="latex-coverage" className="alert-heading">
+                        {language === 'ja' ? '未検査の項目があります' : 'Some checks could not be completed'}
+                    </h5>
+                    <ul className="mb-0 pl-3">
+                        {notices.map((notice, idx) => (
+                            <li key={idx}>
+                                {notice.file ? <><code className="text-break">{notice.file}{notice.line ? ':' + notice.line : ''}</code>{' '}</> : null}
+                                {language === 'ja' ? notice.message_ja || notice.message : notice.message}
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            ) : null}
+
+            {issues.length === 0 && notices.length === 0 ? (
                 <div className="card shadow-sm border-0 p-4 mb-4">
                     <div className="alert alert-success d-flex align-items-center mb-0">
                         <i className="fas fa-check-circle fa-2x mr-3 text-success"></i>
                         <div>
                             <h5 className="alert-heading font-weight-bold mb-1">
-                                {language === 'ja' ? '合格 (All Passed)' : 'OK - All Passed'}
+                                {language === 'ja' ? '検査した項目に問題は見つかりませんでした' : 'No issues in the checked content'}
                             </h5>
                             <div className="small">
                                 {isPasj
-                                    ? (language === 'ja' ? 'すべての書式、句読点、英文要旨および参考文献がPASJ執筆基準を満たしています。' : 'All formatting, punctuation, English abstract, and citations comply with PASJ rules.')
+                                    ? (language === 'ja' ? 'PASJ の LaTeX ソース検査で問題は検出されませんでした。' : 'The PASJ LaTeX source checks found no issues.')
                                     : t('latexNoIssues')}
                             </div>
                         </div>
                     </div>
                 </div>
-            ) : (
+            ) : null}
+
+            {issues.length > 0 ? (
                 <div className="card shadow-sm border-0 mb-4">
                     <div className="card-header bg-light d-flex justify-content-between align-items-center py-3">
                         <div className="d-flex align-items-center">
@@ -185,74 +149,59 @@ const LaTeX: React.FC<ReportProps> = (props) => {
                             </span>
                         </div>
                         <span className="badge badge-danger text-white px-3 py-1 font-weight-bold">
-                            {report.issuesFound} {language === 'ja' ? '件の修正要求' : t('latexIssueCount')}
+                            {issues.length} {language === 'ja' ? '件の修正要求' : t('latexIssueCount')}
                         </span>
                     </div>
 
                     <div className="card-body p-0">
-                        {report.isAbbreviated ? (
-                            <div className="p-3 border-bottom bg-light small">
-                                <ReactMarkdown>{report.content}</ReactMarkdown>
-                            </div>
-                        ) : null}
-
-                        {parsedIssues.length > 0 ? (
-                            <div className="table-responsive">
-                                <table className="table table-bordered table-hover mb-0">
-                                    <thead className="thead-light">
-                                        <tr>
-                                            <th style={{ width: '50px' }} className="text-center">#</th>
-                                            <th style={{ width: '80px' }} className="text-center">{language === 'ja' ? '状態' : 'Status'}</th>
-                                            <th style={{ width: '220px' }}>{language === 'ja' ? '検査項目 / 箇所' : 'Category / Target'}</th>
-                                            <th>{language === 'ja' ? '違反内容と改善提案' : 'Violation Details & Suggestion'}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {parsedIssues.map((issue, idx) => {
-                                            const categoryLabel = getCategoryBadge(issue.target, language);
-                                            let displayDesc = issue.description;
-                                            const sepIdx = displayDesc.indexOf(' / ');
-                                            if (sepIdx !== -1) {
-                                                const jaPart = displayDesc.slice(0, sepIdx);
-                                                const enPart = displayDesc.slice(sepIdx + 3);
-                                                if (/[^\x00-\x7F]/.test(jaPart)) {
-                                                    displayDesc = language === 'ja'
-                                                        ? `${jaPart}\n(${enPart})`
-                                                        : `${enPart}\n(${jaPart})`;
-                                                }
-                                            }
-                                            return (
-                                                <tr key={idx}>
-                                                    <td className="text-center font-weight-bold text-muted align-middle">
-                                                        {idx + 1}
-                                                    </td>
-                                                    <td className="text-center align-middle">
-                                                        <span className="badge badge-danger px-2 py-1">Error</span>
-                                                    </td>
-                                                    <td className="align-middle">
-                                                        <span className="badge badge-secondary px-2 py-1 font-weight-normal" style={{ fontSize: '0.85rem' }}>
-                                                            {categoryLabel}
-                                                        </span>
-                                                    </td>
-                                                    <td className="small text-dark" style={{ lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-                                                        {displayDesc}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <div className="p-3 text-secondary small">
-                                {report.content.split('\n').map((line, idx) => (
-                                    <div key={idx}>{line}</div>
-                                ))}
-                            </div>
-                        )}
+                        <div className="table-responsive">
+                            <table className="table table-bordered table-hover mb-0">
+                                <thead className="thead-light">
+                                    <tr>
+                                        <th style={{ width: '50px' }} className="text-center">#</th>
+                                        <th style={{ width: '80px' }} className="text-center">{language === 'ja' ? '状態' : 'Status'}</th>
+                                        <th style={{ width: '220px' }}>{language === 'ja' ? '検査項目 / 箇所' : 'Category / Target'}</th>
+                                        <th>{language === 'ja' ? '違反内容と改善提案' : 'Violation Details & Suggestion'}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {issues.map((issue, idx) => {
+                                        const category = issue.category && categories[issue.category];
+                                        const label = category ? category[language === 'ja' ? 1 : 0] : issue.name;
+                                        const description = language === 'ja' ? issue.message_ja || issue.message : issue.message;
+                                        return (
+                                            <tr key={idx}>
+                                                <td className="text-center font-weight-bold text-muted align-middle">
+                                                    {idx + 1}
+                                                </td>
+                                                <td className="text-center align-middle">
+                                                    <span className="badge badge-danger px-2 py-1">Error</span>
+                                                </td>
+                                                <td className="align-middle">
+                                                    <span className="badge badge-secondary px-2 py-1 font-weight-normal" style={{ fontSize: '0.85rem' }}>
+                                                        {label}
+                                                    </span>
+                                                    {(issue.category === 'reference' || issue.category === 'cross_reference') && (
+                                                        <code className="d-block mt-1 text-break">{issue.name}</code>
+                                                    )}
+                                                    {issue.file ? (
+                                                        <code className="d-block mt-1 text-break">
+                                                            {issue.file}{issue.line ? ':' + issue.line : ''}
+                                                        </code>
+                                                    ) : null}
+                                                </td>
+                                                <td className="small text-dark" style={{ lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                                                    {description}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            )}
+            ) : null}
         </div>
     );
 };

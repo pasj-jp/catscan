@@ -3,7 +3,7 @@ from catscan.checkers.latex.engine import RuleBasedLatexChecker
 
 
 SAMPLE_VALID_TEX = r"""
-\documentclass{article}
+\documentclass{jacow}
 \begin{document}
 \title{Sample Paper}
 \author{A. Author}
@@ -25,7 +25,7 @@ B. Author, \textquotedblleft{Second Paper,}\textquotedblright{} \textit{J. Appl.
 """
 
 SAMPLE_INVALID_TEX = r"""
-\documentclass{article}
+\documentclass{jacow}
 \begin{document}
 \begin{thebibliography}{9}
 
@@ -53,9 +53,7 @@ def test_latex_checker_valid():
     checker = RuleBasedLatexChecker("jacow_latex", check_online_dois=False)
     result = checker.check(SAMPLE_VALID_TEX.encode("utf-8"), filename="valid.tex")
 
-    assert result["statusCode"] == 200
-    assert result["issuesFound"] == 0
-    assert result["body"] == "No issues found"
+    assert len(result["issues"]) == 0
     assert result["total_references"] == 2  # commented ref was ignored
 
 
@@ -63,9 +61,8 @@ def test_latex_checker_issues_detected():
     checker = RuleBasedLatexChecker("jacow_latex", check_online_dois=False)
     result = checker.check(SAMPLE_INVALID_TEX.encode("utf-8"), filename="invalid.tex")
 
-    assert result["statusCode"] == 200
-    assert result["issuesFound"] >= 5
-    body = result["body"]
+    assert len(result["issues"]) >= 5
+    body = "\n".join(f"{issue['name']} {issue['message']}" for issue in result["issues"])
 
     # Verify all expected issues were flagged
     assert "bad_etal" in body
@@ -84,6 +81,26 @@ def test_latex_checker_issues_detected():
     assert 'DOI does not contain "doi:" prefix' in body
 
 
+def test_jacow_latex_checks_manuscript_structure():
+    source = SAMPLE_VALID_TEX.replace("{jacow}", "{article}", 1).replace(
+        r"\maketitle",
+        r"""\maketitle
+\begin{abstract}
+See \cite{ref1}.
+\end{abstract}
+\begin{figure*}
+% \caption{This is commented out.}
+\end{figure*}""",
+        1,
+    )
+    report = RuleBasedLatexChecker("jacow_latex").check(source.encode(), filename="paper.tex")
+
+    assert {issue["type"] for issue in report["issues"]} == {
+        "INCORRECT_DOCUMENT_CLASS", "ABSTRACT_CITATION", "MISSING_FIGURE_CAPTION",
+    }
+    assert all(issue["file"] == "paper.tex" and issue["line"] > 0 for issue in report["issues"])
+
+
 def test_latex_factory_dispatch():
     checker = get_checker("jacow", "latex")
     assert isinstance(checker, RuleBasedLatexChecker)
@@ -93,19 +110,18 @@ def test_latex_factory_dispatch():
 def test_api_scan_latex_endpoint(client):
     # Valid LaTeX upload
     res = client.post(
-        "/api/scan/latex",
-        json={"filename": "test.tex", "content": SAMPLE_VALID_TEX}
+        "/api/scan/file",
+        files={"file": ("test.tex", SAMPLE_VALID_TEX.encode())}
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["issuesFound"] == 0
-    assert data["body"] == "No issues found"
+    assert len(data["issues"]) == 0
 
     # Invalid LaTeX upload
     res_bad = client.post(
-        "/api/scan/latex",
-        json={"filename": "invalid.tex", "content": SAMPLE_INVALID_TEX}
+        "/api/scan/file",
+        files={"file": ("invalid.tex", SAMPLE_INVALID_TEX.encode())}
     )
     assert res_bad.status_code == 200
     data_bad = res_bad.json()
-    assert data_bad["issuesFound"] >= 5
+    assert len(data_bad["issues"]) >= 5

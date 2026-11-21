@@ -38,7 +38,7 @@ def test_api_scan_word_upload(client):
     # Direct file upload scan
     with open(SAMPLE_DOC, "rb") as f:
         upload_res = client.post(
-            "/api/scan/word",
+            "/api/scan/file",
             files={"file": ("test.docx", f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
             data={"template": "jacow"}
         )
@@ -59,7 +59,7 @@ def test_api_scan_word_upload(client):
 def test_api_scan_word_upload_pasj(client):
     with open(SAMPLE_DOC, "rb") as f:
         res = client.post(
-            "/api/scan/word",
+            "/api/scan/file",
             files={"file": ("test_pasj.docx", f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
             data={"template": "pasj"}
         )

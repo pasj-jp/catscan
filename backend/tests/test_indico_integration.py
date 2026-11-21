@@ -95,8 +95,8 @@ def test_indico_service_mock_latex():
     assert res["doc_type"] == "latex"
     assert res["comment_posted"] is True
     assert res["result"]["report_type"] == "latex"
-    assert res["result"]["issuesFound"] > 0
-    assert "### 🐱 CatScan Automated Reference & Style Validation" in res["comment_text"]
+    assert len(res["result"]["issues"]) > 0
+    assert "### 🐱 CatScan Automated Format Validation" in res["comment_text"]
 
     # Verify report is retrievable
     report = reports.load(res["report_id"])

@@ -32,7 +32,6 @@ def test_pasj_latex_checker_sample():
     content = SAMPLE_PASJ_TEX.read_bytes()
     res = checker.check(content, filename="PASJ_Sample_Paper.tex")
 
-    assert res["statusCode"] == 200
     assert res["total_references"] >= 20
     assert res["report_type"] == "latex"
 
@@ -41,9 +40,8 @@ def test_pasj_latex_checker_invalid():
     checker = RuleBasedLatexChecker("pasj_latex")
     res = checker.check(INVALID_PASJ_TEX.encode("utf-8"), filename="bad.tex")
 
-    assert res["statusCode"] == 200
-    assert res["issuesFound"] >= 6
-    body = res["body"]
+    assert len(res["issues"]) >= 6
+    body = "\n".join(f"{issue['name']} {issue['message']}" for issue in res["issues"])
 
     assert "documentclass" in body
     assert "Japanese title" in body
@@ -97,21 +95,22 @@ def test_pasj_factory_dispatch():
 
 def test_api_scan_latex_pasj(client):
     res = client.post(
-        "/api/scan/latex",
-        json={"filename": "test_pasj.tex", "content": INVALID_PASJ_TEX, "template": "pasj"}
+        "/api/scan/file",
+        files={"file": ("test_pasj.tex", INVALID_PASJ_TEX.encode())},
+        data={"template": "pasj"},
     )
     assert res.status_code == 200
     data = res.json()
     assert data["detected_template"] == "pasj"
     assert data["template_name"] == "PASJ 和文原稿"
-    assert data["issuesFound"] >= 6
+    assert len(data["issues"]) >= 6
     assert "report_id" in data
 
 
 def test_api_scan_word_pasj(client):
     with open(SAMPLE_PASJ_DOCX, "rb") as f:
         res = client.post(
-            "/api/scan/word",
+            "/api/scan/file",
             files={"file": ("PASJ_Sample_Paper.docx", f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
             data={"template": "pasj"}
         )

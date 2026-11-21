@@ -1,10 +1,10 @@
 # CatScan frontend
 
-React/Vite frontend for the PASJ and JACoW paper validation interfaces. JACoW checkers are implemented; PASJ checkers are placeholders and currently report that validation is unavailable.
+React/Vite frontend for checking PASJ and JACoW manuscripts. The upload form sends Word files, LaTeX files, and source archives to `POST /api/scan/file`.
 
 ## Local development
 
-Run `npm ci` and `npm run start`. The Vite development server proxies `/api` to `http://localhost:8000`, where the FastAPI backend listens by default.
+Run `npm ci` and `npm run start`. With Vite started directly, `/api` is proxied to `http://127.0.0.1:8000`. Set `CATSCAN_API_PROXY_TARGET` when running the backend on a different port. The root `Procfile` sets this value for Honcho.
 
 ## Production API URL
 

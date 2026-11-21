@@ -5,7 +5,7 @@ from ..errors import DocumentError
 from ..services.scanning import scan_document
 from ..settings import get_settings
 from .client import IndicoClient, IndicoAPIError
-from .comment import render_comment, PASJ_CATEGORY_LABELS
+from .comment import render_comment
 
 logger = logging.getLogger("catscan.indico.service")
 
@@ -35,7 +35,7 @@ class IndicoScanService:
     storing reports, and posting feedback comments to the Indico revision timeline.
     """
 
-    def __init__(self, client: Optional[IndicoClient] = None, config: Optional[Any] = None):
+    def __init__(self, client: Optional[IndicoClient] = None):
         self._owns_client = client is None
         self.client = client or IndicoClient()
 
@@ -96,7 +96,7 @@ class IndicoScanService:
         settings = get_settings()
         report_url = f"{settings.catscan_base_url}/?results={result['report_id']}"
 
-        comment_text = render_comment(result, report_url, doc_type)
+        comment_text = render_comment(result, report_url)
         comment_posted = False
 
         if post_comment:
@@ -170,6 +170,3 @@ class IndicoScanService:
             "results": results,
             "errors": errors,
         }
-
-    def _format_markdown_comment(self, result: Dict[str, Any], report_url: str, doc_type: str) -> str:
-        return render_comment(result, report_url, doc_type)

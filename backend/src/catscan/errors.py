@@ -11,6 +11,15 @@ class DocumentError(CatScanError):
     status_code: int = 400
 
 
+class TemplateMismatchError(DocumentError):
+    status_code: int = 409
+
+    def __init__(self, selected: str, detected: str):
+        self.selected = selected
+        self.detected = detected
+        super().__init__(f"The manuscript appears to use {detected.upper()}. Confirm the template before scanning.")
+
+
 class AuthenticationError(CatScanError):
     status_code: int = 401
 

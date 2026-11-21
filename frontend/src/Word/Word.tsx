@@ -4,7 +4,8 @@ import './Report.css';
 import { useLanguage } from "../i18n";
 
 type WordReport = {
-    type: string,
+    report_type: "word",
+    report_id?: string,
     filename?: string,
     detected_template?: string,
     template_name?: string,

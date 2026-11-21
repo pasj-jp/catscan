@@ -25,3 +25,16 @@
 .custom-control-label {
     cursor: pointer;
 }
+
+.template-mismatch {
+    width: calc(100% - 2rem);
+    max-width: 30rem;
+    border: 0;
+    border-radius: 0.5rem;
+    padding: 0;
+    color: inherit;
+}
+
+.template-mismatch::backdrop {
+    background: rgb(0 0 0 / 50%);
+}

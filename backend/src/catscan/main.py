@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from .api.scan import router as scan_router
 from .api.reports import router as reports_router
 from .api.indico import router as indico_router
-from .errors import CatScanError
+from .errors import CatScanError, TemplateMismatchError
 from .settings import get_settings
 
 
@@ -29,9 +29,12 @@ def create_app() -> FastAPI:
 
     @application.exception_handler(CatScanError)
     def catscan_error_handler(request: Request, exc: CatScanError):
+        content = {"error": str(exc)}
+        if isinstance(exc, TemplateMismatchError):
+            content.update(code="template_mismatch", selected_template=exc.selected, detected_template=exc.detected)
         return JSONResponse(
             status_code=exc.status_code,
-            content={"error": str(exc)},
+            content=content,
         )
 
     application.include_router(scan_router)

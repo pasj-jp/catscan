@@ -16,8 +16,7 @@ def test_latex_perfect_samples(rules_name, filename, expected_issues, expected_r
     checker = RuleBasedLatexChecker(rules_name)
     data = load_example(filename)
     result = checker.check(data, filename=filename)
-    assert result["statusCode"] == 200
-    assert result["issuesFound"] == expected_issues
+    assert len(result["issues"]) == expected_issues
     assert result["total_references"] == expected_refs
 
 
@@ -51,9 +50,8 @@ def test_latex_issue_samples(rules_name, filename, expected_issues, expected_key
     checker = RuleBasedLatexChecker(rules_name)
     data = load_example(filename)
     result = checker.check(data, filename=filename)
-    assert result["statusCode"] == 200
-    assert result["issuesFound"] == expected_issues
-    body = result["body"]
+    assert len(result["issues"]) == expected_issues
+    body = "\n".join(f"{issue['name']} {issue['message']}" for issue in result["issues"])
     for kw in expected_keywords:
         assert kw in body
 

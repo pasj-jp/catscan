@@ -1,4 +1,5 @@
 import React from 'react';
+import { isAxiosError } from 'axios';
 import { Accept, useDropzone } from 'react-dropzone';
 import api from './api';
 import './Upload.css';
@@ -6,8 +7,21 @@ import { Report } from "./App";
 import { useSearchParams } from "react-router-dom";
 import { useLanguage } from "./i18n";
 
-type UploadState = "idle" | "uploading" | "processing" | "success" | "error";
-type TemplateChoice = 'auto' | 'pasj' | 'jacow';
+type UploadState = "idle" | "processing" | "error";
+type ManualTemplate = 'pasj' | 'jacow';
+type TemplateChoice = 'auto' | ManualTemplate;
+
+type TemplateMismatch = {
+    file: File;
+    selected: ManualTemplate;
+    detected: ManualTemplate;
+};
+
+type ScanError = {
+    code?: string;
+    error?: string;
+    detected_template?: ManualTemplate;
+};
 
 const allowedExtensions: Accept = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
@@ -22,10 +36,56 @@ type UploadProps = {
     setReport: (report: Report) => void
 }
 
+const TemplateMismatchDialog: React.FC<{
+    mismatch: TemplateMismatch;
+    onChoose: (template: ManualTemplate) => void;
+    onCancel: () => void;
+}> = ({ mismatch, onChoose, onCancel }) => {
+    const { t } = useLanguage();
+    const dialogRef = React.useRef<HTMLDialogElement>(null);
+    React.useEffect(() => {
+        const dialog = dialogRef.current;
+        dialog?.showModal();
+        return () => dialog?.close();
+    }, []);
+
+    const selected = t(mismatch.selected === 'pasj' ? 'templatePasjName' : 'templateJacowName');
+    const detected = t(mismatch.detected === 'pasj' ? 'templatePasjName' : 'templateJacowName');
+    return (
+        <dialog
+            className="template-mismatch"
+            ref={dialogRef}
+            aria-labelledby="template-mismatch-title"
+            aria-describedby="template-mismatch-description"
+            onCancel={onCancel}
+        >
+            <div className="modal-header">
+                <h2 className="modal-title h5" id="template-mismatch-title">{t('templateMismatchTitle')}</h2>
+                <button type="button" className="close" aria-label={t('templateMismatchCancel')} onClick={onCancel}>
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div className="modal-body" id="template-mismatch-description">
+                <p className="mb-2">{t('templateMismatchSelected')} <strong>{selected}</strong></p>
+                <p className="mb-0">{t('templateMismatchDetected')} <strong>{detected}</strong></p>
+            </div>
+            <div className="modal-footer">
+                <button type="button" className="btn btn-outline-secondary" onClick={() => onChoose(mismatch.selected)}>
+                    {t('templateMismatchKeep')}
+                </button>
+                <button type="button" className="btn btn-primary" autoFocus onClick={() => onChoose(mismatch.detected)}>
+                    {t('templateMismatchSwitch')}
+                </button>
+            </div>
+        </dialog>
+    );
+};
+
 const Upload: React.FC<UploadProps> = (props) => {
     const { t } = useLanguage();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [selectedTemplate, setSelectedTemplate] = React.useState<TemplateChoice>('auto');
+    const [selectedTemplate, setSelectedTemplate] = React.useState<TemplateChoice>('pasj');
+    const [mismatch, setMismatch] = React.useState<TemplateMismatch | null>(null);
     const [progress, setProgress] = React.useState(0);
     const [upload, setUpload] = React.useState<UploadState>('idle');
     const [error, setError] = React.useState<string>('');
@@ -35,50 +95,20 @@ const Upload: React.FC<UploadProps> = (props) => {
         multiple: false,
     };
 
-    const applyScanResponse = (data: any, fallbackFilename?: string) => {
-        if (data.error && !data.scores) {
-            setUpload("error");
-            setError(data.error);
-            return;
-        }
-        if (data.report_type === 'latex') {
-            setUpload("success");
-            props.setReport({
-                type: "latex",
-                report: {
-                    filename: data.filename || fallbackFilename || "document.tex",
-                    content: data.body,
-                    isAbbreviated: data.isabbreviated,
-                    unabbreviated: data.unabbreviated,
-                    issuesFound: data.issuesFound,
-                    detected_template: data.detected_template,
-                    template_name: data.template_name,
-                    total_references: data.total_references,
-                    issues: data.issues,
-                },
-            });
-        } else {
-            setUpload("success");
-            props.setReport({ type: "word", report: data });
-        }
-        if (data.report_id) {
-            setSearchParams({ results: data.report_id });
-        }
-    };
-
-    // Load saved report by ID if present in URL query (?results=...)
+    const resultsId = searchParams.get("results");
     React.useEffect(() => {
-        const resultsId = searchParams.get("results");
-        if (resultsId) {
-            setUpload("processing");
-            api.get(`/api/reports/${resultsId}`)
-                .then((response) => applyScanResponse(response.data))
-                .catch(() => {
-                    setUpload("error");
-                    setError(t('reportLoadError'));
-                });
-        }
-    }, [searchParams]);
+        if (!resultsId) return;
+        const controller = new AbortController();
+        setUpload("processing");
+        api.get<Report>(`/api/reports/${encodeURIComponent(resultsId)}`, { signal: controller.signal })
+            .then(({ data }) => props.setReport(data))
+            .catch(() => {
+                if (controller.signal.aborted) return;
+                setUpload("error");
+                setError(t('reportLoadError'));
+            });
+        return () => controller.abort();
+    }, [resultsId, props.setReport, t]);
 
     const restart = () => {
         setProgress(0);
@@ -87,75 +117,41 @@ const Upload: React.FC<UploadProps> = (props) => {
     };
 
     const { getRootProps, getInputProps, acceptedFiles } = useDropzone(opts);
-    const scanMultipart = (endpoint: string, file: File) => {
+    const scan = async (file: File, template: TemplateChoice, verifyTemplate: boolean) => {
+        setProgress(0);
+        setUpload("processing");
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("template", selectedTemplate);
-        return api.post(endpoint, formData, {
-            headers: {
-                "Content-Type": "multipart/form-data"
-            },
-            onUploadProgress: (progressEvent) => {
-                if (progressEvent.progress !== undefined) {
-                    setProgress(Math.round(progressEvent.progress * 100));
-                }
-            }
-        });
-    };
-
-    const uploadLaTeX = async (content: string, template: TemplateChoice) => {
-        return api({
-            onUploadProgress: (progressEvent) => {
-                if (progressEvent.progress !== undefined) {
-                    setProgress(Math.round(progressEvent.progress * 100));
-                }
-            },
-            url: "/api/scan/latex",
-            method: 'POST',
-            data: {
-                filename: acceptedFiles[0].name,
-                content: content,
-                template: template,
-            },
-            headers: {
-                'Content-Type': "application/json"
-            },
-        });
-    };
-
-    const submitForm = async () => {
+        formData.append("template", template);
+        formData.append("verify_template", String(verifyTemplate));
         try {
-            if (acceptedFiles.length > 0) {
-                setUpload("uploading");
-                const file = acceptedFiles[0];
-                const lowerName = file.name.toLowerCase();
-                const isDocx = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || lowerName.endsWith(".docx");
-                const isArchive = lowerName.endsWith(".zip") || lowerName.endsWith(".tar.gz") || lowerName.endsWith(".tgz");
-
-                if (isDocx) {
-                    setUpload("processing");
-                    const response = await scanMultipart("/api/scan/word", file);
-                    applyScanResponse(response.data, file.name);
-                } else if (isArchive) {
-                    setUpload("processing");
-                    const response = await scanMultipart("/api/scan/file", file);
-                    applyScanResponse(response.data, file.name);
-                } else {
-                    const content = await file.text();
-                    const response = await uploadLaTeX(content, selectedTemplate);
-                    if (response.status !== 200) {
-                        setUpload("error");
-                        setError(response.data);
-                    } else {
-                        applyScanResponse(response.data, file.name);
+            const response = await api.post<Report>("/api/scan/file", formData, {
+                onUploadProgress: (event) => {
+                    if (event.progress !== undefined) {
+                        setProgress(Math.round(event.progress * 100));
                     }
-                }
+                },
+            });
+            if (response.data.report_id) {
+                setSearchParams({ results: response.data.report_id });
             }
-        } catch (err: any) {
+            props.setReport(response.data);
+        } catch (err) {
+            const response = isAxiosError<ScanError>(err) ? err.response : undefined;
+            const errorData = response?.data;
+            const detected = errorData?.detected_template;
+            if (verifyTemplate && template !== 'auto' && errorData?.code === 'template_mismatch'
+                && (detected === 'pasj' || detected === 'jacow')) {
+                setMismatch({ file, selected: template, detected });
+                setUpload("idle");
+                return;
+            }
             setUpload("error");
-            setError(err.response?.data?.code === 'checker_not_implemented'
-                ? t('checkerNotImplemented')
-                : err.response?.data?.error || err.message || "An unexpected error occurred during paper validation.");
+            if (isAxiosError(err) && !errorData?.error && (!response || response.status >= 500)) {
+                setError(t('scanServiceUnavailable'));
+            } else {
+                setError(errorData?.error || (err instanceof Error ? err.message : t('errorTitle')));
+            }
         }
     };
 
@@ -165,7 +161,9 @@ const Upload: React.FC<UploadProps> = (props) => {
                 {upload === 'idle' && (
                     <form onSubmit={(e) => {
                         e.preventDefault();
-                        submitForm();
+                        if (acceptedFiles[0]) {
+                            void scan(acceptedFiles[0], selectedTemplate, selectedTemplate !== 'auto');
+                        }
                     }} className="card shadow-sm border-0 p-4 p-md-5">
 
                         <div className="text-center mb-4">
@@ -185,6 +183,7 @@ const Upload: React.FC<UploadProps> = (props) => {
                             <div className="btn-group btn-group-toggle w-100 shadow-sm" role="group">
                                 <button
                                     type="button"
+                                    aria-pressed={selectedTemplate === 'auto'}
                                     className={`btn py-2 ${selectedTemplate === 'auto' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'}`}
                                     onClick={() => setSelectedTemplate('auto')}
                                     style={{ width: '30%' }}
@@ -193,6 +192,7 @@ const Upload: React.FC<UploadProps> = (props) => {
                                 </button>
                                 <button
                                     type="button"
+                                    aria-pressed={selectedTemplate === 'pasj'}
                                     className={`btn py-2 ${selectedTemplate === 'pasj' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'}`}
                                     onClick={() => setSelectedTemplate('pasj')}
                                     style={{ width: '35%' }}
@@ -201,6 +201,7 @@ const Upload: React.FC<UploadProps> = (props) => {
                                 </button>
                                 <button
                                     type="button"
+                                    aria-pressed={selectedTemplate === 'jacow'}
                                     className={`btn py-2 ${selectedTemplate === 'jacow' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'}`}
                                     onClick={() => setSelectedTemplate('jacow')}
                                     style={{ width: '35%' }}
@@ -258,7 +259,19 @@ const Upload: React.FC<UploadProps> = (props) => {
                     </form>
                 )}
 
-                {(upload === "uploading" || upload === "processing") && (
+                {mismatch ? (
+                    <TemplateMismatchDialog
+                        mismatch={mismatch}
+                        onCancel={() => setMismatch(null)}
+                        onChoose={(template) => {
+                            setMismatch(null);
+                            setSelectedTemplate(template);
+                            void scan(mismatch.file, template, false);
+                        }}
+                    />
+                ) : null}
+
+                {upload === "processing" && (
                     <div className="card shadow-sm border-0 p-4 p-md-5 text-center my-4">
                         <h3 className="h5 font-weight-bold text-primary mb-3">
                             <i className="fas fa-spinner fa-spin mr-2"></i> {t('processingTitle')}

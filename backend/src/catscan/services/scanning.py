@@ -1,17 +1,22 @@
 import io
 import os
+import re
 import tarfile
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from ..checkers.registry import get_checker, detect_template, TEMPLATE_NAMES
-from ..errors import DocumentError
+from ..checkers.common.docx_utils import open_docx
+from ..checkers.latex.engine import decode_tex_bytes
+from ..checkers.latex.project import DOCUMENT_CLASS, active_tex, expand_project
+from ..checkers.registry import TEMPLATE_NAMES, detect_latex_source, detect_word_template, get_checker
+from ..errors import DocumentError, TemplateMismatchError
 from . import reports
 
 MAX_ARCHIVE_ENTRIES = 500
 MAX_ARCHIVE_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 MAX_ARCHIVE_MEMBER_BYTES = 25 * 1024 * 1024
+SOURCE_SUFFIXES = (".tex", ".bib", ".bbl", ".docx")
 
 
 def _is_ignored_member(member_name: str) -> bool:
@@ -31,19 +36,26 @@ def _is_safe_member_path(member_name: str) -> bool:
     return ".." not in parts
 
 
-def _score_tex_candidate(rel_path: str, content: bytes) -> tuple[int, int, int]:
-    text = content[:8192].decode("utf-8", errors="ignore")
-    has_docclass = 1 if "\\documentclass" in text else 0
-    has_begindoc = 1 if "\\begin{document}" in text else 0
+def _score_tex_candidate(rel_path: str, content: str) -> tuple[int, int]:
+    text = active_tex(content)
+    has_docclass = bool(re.search(DOCUMENT_CLASS, text))
+    has_begindoc = bool(re.search(r"\\begin\s*\{document\}", text))
     depth = len(PurePosixPath(rel_path).parts)
-    return (has_docclass + has_begindoc, -depth, len(content))
+    return has_docclass + has_begindoc, -depth
 
 
-def _extract_archive_candidates(data: bytes, filename: str) -> tuple[list[tuple[str, bytes]], list[tuple[str, bytes]]]:
+def _extract_archive_sources(data: bytes, filename: str) -> dict[str, bytes]:
     lower = filename.lower()
-    tex_candidates: list[tuple[str, bytes]] = []
-    docx_candidates: list[tuple[str, bytes]] = []
+    sources: dict[str, bytes] = {}
     total_read = 0
+
+    def store_source(name: str, content: bytes) -> None:
+        path = PurePosixPath(name.replace("\\", "/")).as_posix()
+        if path in sources:
+            raise DocumentError(f"Duplicate source path in archive: {path}")
+        if len(content) > MAX_ARCHIVE_MEMBER_BYTES:
+            raise DocumentError(f"Archive entry exceeds size limit: {name}")
+        sources[path] = content
 
     if lower.endswith(".zip"):
         try:
@@ -62,14 +74,8 @@ def _extract_archive_candidates(data: bytes, filename: str) -> tuple[list[tuple[
                     if total_read > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
                         raise DocumentError("Archive uncompressed content exceeds size limit.")
                     ext = os.path.splitext(info.filename.lower())[1]
-                    if ext in (".tex", ".docx"):
-                        content = zf.read(info.filename)
-                        if len(content) > MAX_ARCHIVE_MEMBER_BYTES:
-                            raise DocumentError(f"Archive entry exceeds size limit: {info.filename}")
-                        if ext == ".tex":
-                            tex_candidates.append((info.filename, content))
-                        else:
-                            docx_candidates.append((info.filename, content))
+                    if ext in SOURCE_SUFFIXES:
+                        store_source(info.filename, zf.read(info))
         except zipfile.BadZipFile as e:
             raise DocumentError(f"Invalid .zip archive: {e}") from e
     elif lower.endswith((".tar.gz", ".tgz")):
@@ -91,41 +97,32 @@ def _extract_archive_candidates(data: bytes, filename: str) -> tuple[list[tuple[
                     if total_read > MAX_ARCHIVE_UNCOMPRESSED_BYTES:
                         raise DocumentError("Archive uncompressed content exceeds size limit.")
                     ext = os.path.splitext(member.name.lower())[1]
-                    if ext in (".tex", ".docx"):
+                    if ext in SOURCE_SUFFIXES:
                         f = tf.extractfile(member)
                         if f is None:
                             continue
-                        content = f.read(MAX_ARCHIVE_MEMBER_BYTES + 1)
-                        if len(content) > MAX_ARCHIVE_MEMBER_BYTES:
-                            raise DocumentError(f"Archive entry exceeds size limit: {member.name}")
-                        if ext == ".tex":
-                            tex_candidates.append((member.name, content))
-                        else:
-                            docx_candidates.append((member.name, content))
+                        store_source(member.name, f.read(MAX_ARCHIVE_MEMBER_BYTES + 1))
         except tarfile.TarError as e:
             raise DocumentError(f"Invalid .tar.gz archive: {e}") from e
 
-    return tex_candidates, docx_candidates
+    return sources
 
 
-def unwrap_document_payload(data: bytes, filename: str) -> tuple[bytes, str, str]:
-    """Return `(payload_bytes, effective_filename, doc_type)` for raw or archived manuscripts."""
+def _manuscript_sources(data: bytes, filename: str) -> dict[str, bytes]:
     lower = filename.lower()
-    if lower.endswith(".tex"):
-        return data, filename, "latex"
-    if lower.endswith(".docx"):
-        return data, filename, "word"
+    if lower.endswith((".tex", ".docx")):
+        return {filename: data}
     if lower.endswith((".zip", ".tar.gz", ".tgz")):
-        tex_candidates, docx_candidates = _extract_archive_candidates(data, filename)
-        if tex_candidates:
-            best_name, best_bytes = max(tex_candidates, key=lambda item: _score_tex_candidate(item[0], item[1]))
-            return best_bytes, Path(best_name).name, "latex"
-        if docx_candidates:
-            best_name, best_bytes = docx_candidates[0]
-            return best_bytes, Path(best_name).name, "word"
-        raise DocumentError("Archive does not contain a supported .tex or .docx manuscript.")
-
+        return _extract_archive_sources(data, filename)
     raise DocumentError(f"Unsupported manuscript file format: {filename}")
+
+
+def _select_template(selected: str, detected: str | None) -> str:
+    if selected == "auto":
+        return detected or "jacow"
+    if detected is not None and selected.casefold() != detected:
+        raise TemplateMismatchError(selected, detected)
+    return selected
 
 
 def scan_document(
@@ -133,10 +130,45 @@ def scan_document(
     filename: str,
     template: str = "auto",
     extra: dict[str, Any] | None = None,
+    *,
+    verify_template: bool = False,
 ) -> dict[str, Any]:
-    payload_bytes, effective_filename, doc_type = unwrap_document_payload(data, filename)
-    template = detect_template(payload_bytes, doc_type) if template == "auto" else template
-    result = get_checker(template, doc_type).check(payload_bytes, effective_filename)
+    auto_template = template == "auto"
+    sources = _manuscript_sources(data, filename)
+    tex_sources = {
+        name: decode_tex_bytes(content)
+        for name, content in sources.items()
+        if name.lower().endswith((".tex", ".bib", ".bbl"))
+    }
+    candidates = [name for name in tex_sources if name.lower().endswith(".tex")]
+    if candidates:
+        root = candidates[0]
+        if len(candidates) > 1:
+            scores = {name: _score_tex_candidate(name, tex_sources[name]) for name in candidates}
+            candidates.sort(key=scores.__getitem__, reverse=True)
+            root, second = candidates[:2]
+            if scores[root] == scores[second]:
+                raise DocumentError(
+                    "Multiple possible TeX main files. Submit an archive with a single identifiable main file."
+                )
+        effective_filename = Path(root).name
+        doc_type = "latex"
+        project = expand_project(root, tex_sources)
+        if auto_template or verify_template:
+            detected = detect_latex_source(project.content, allow_language_fallback=auto_template)
+            template = _select_template(template, detected)
+        result = get_checker(template, doc_type).check_project(project, effective_filename)
+    else:
+        root = next((name for name in sources if name.lower().endswith(".docx")), None)
+        if root is None:
+            raise DocumentError("Archive does not contain a supported .tex or .docx manuscript.")
+        effective_filename = Path(root).name
+        doc_type = "word"
+        doc = open_docx(sources[root])
+        if auto_template or verify_template:
+            detected = detect_word_template(doc, allow_language_fallback=auto_template)
+            template = _select_template(template, detected)
+        result = get_checker(template, doc_type).check_document(doc, effective_filename)
     result.update({
         "report_type": doc_type,
         "detected_template": template,

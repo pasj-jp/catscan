@@ -65,41 +65,6 @@ class ExtraInfo(Strict):
         return out
 
 
-# --------------------------------------------------------------------------
-# Shared: page size / margins / columns (Word)
-# --------------------------------------------------------------------------
-
-class PageSize(Strict):
-    name: str
-    width_mm: Optional[float] = None
-    width_in: Optional[float] = None
-    height_mm: Optional[float] = None
-    margin_unit: Literal["mm", "in"] = "mm"
-    margins: List[float] = Field(description="[top, bottom, left, right]")
-
-    @model_validator(mode="after")
-    def _one_width(self):
-        if (self.width_mm is None) == (self.width_in is None):
-            raise ValueError(f"page size {self.name!r}: give exactly one of width_mm / width_in")
-        if len(self.margins) != 4:
-            raise ValueError(f"page size {self.name!r}: margins must be [top, bottom, left, right]")
-        return self
-
-
-class PageLayout(Strict):
-    sizes: List[PageSize]
-    column_gutter_cm: float = 0.51
-
-
-# --------------------------------------------------------------------------
-# LaTeX rule files (jacow_latex.yaml / pasj_latex.yaml)
-# --------------------------------------------------------------------------
-
-class LatexReport(Strict):
-    issue_format: str = "Issue found in {name}: {message}"
-    extra_output: Dict[str, Any] = Field(default_factory=dict)
-
-
 class LatexTarget(Strict):
     """How to extract one piece of text from the .tex source."""
     macro: Optional[Union[str, List[str]]] = None
@@ -165,7 +130,6 @@ DOI_ONLINE_ISSUES = ("DOI_ENDS_IN_PERIOD", "DOI_ENDS_IN_PARENTHESIS", "DOI_NOT_F
 
 
 class LatexRules(Strict):
-    report: LatexReport = Field(default_factory=LatexReport)
     targets: Dict[str, LatexTarget] = Field(default_factory=dict)
     captions: Dict[Literal["figure", "table"], LatexCaption] = Field(default_factory=dict)
     rules: List[LatexRule]

@@ -18,7 +18,7 @@
 #    scope:       document (default) | figure | table | bibitem
 #    target:      document: a name from `targets`
 #                 bibitem:  text (cleaned) | original (raw)
-#    name:        label printed in "Issue found in <name>: ..."
+#    name:        label shown in the report
 #    missing:     true -> report when the target is not found at all
 #    match:       regex; report when it IS found
 #    not_match:   regex; report when it is NOT found (empty text is skipped)
@@ -29,17 +29,9 @@
 #  Japanese characters (Hiragana / Katakana / Kanji): '[\u3040-\u30ff\u4e00-\u9faf]'
 # =============================================================================
 
-report:
-  issue_format: "Issue found in {name}: {message}"
-  extra_output:
-    report_type: latex
-    detected_template: pasj
-    template_name: "PASJ 和文原稿"
-
 targets:
   documentclass:
     regex: '\\documentclass(?:\s*\[[^\]]*\])?\s*\{([^}]+)\}'
-    ignore_comments: false
   jtitle:
     macro: jtitle
   title:
@@ -71,7 +63,7 @@ rules:
     target: documentclass
     name: documentclass
     missing: true
-    not_match: 'pasj'
+    not_match: '^\s*pasj(?:[-_]?\d{4})?\s*$'
     ignore_case: true
 
   # --- 2. Bilingual titles ---
@@ -167,6 +159,8 @@ rules:
     ignore_case: true
 
 messages:
+  UNDEFINED_REFERENCE: 未定義のラベルを追加するか、参照先を修正してください。 / Define the missing label or correct the reference to it.
+  UNDEFINED_CITATION: 参考文献を追加するか、引用キーを修正してください。 / Add the missing bibliography entry or correct the citation key.
   INCORRECT_DOCUMENT_CLASS: >-
     公式のPASJドキュメントクラス（例: \documentclass{PASJ2026}）が使用されていません。最新のPASJテンプレートを使用してください。 /
     Document class does not appear to use the official PASJ class (e.g. \documentclass{PASJ2026}).

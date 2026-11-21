@@ -3,14 +3,20 @@ import tarfile
 import zipfile
 from unittest.mock import MagicMock
 
+import pytest
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
+from docx.oxml.ns import qn
 from docx.shared import Mm, Pt
 
 from catscan.checkers.common.layout import check_sections
 from catscan.checkers.latex.engine import RuleBasedLatexChecker
-from catscan.checkers.pasj.word_checker import PasjWordChecker
+from catscan.checkers.pasj.word_checker import PasjWordChecker, classify_paragraphs
+from catscan.checkers.registry import detect_template
+from catscan.indico.comment import render_comment
 from catscan.indico.client import IndicoClient
 from catscan.indico.service import IndicoScanService
+from catscan.services import reports
 from .conftest import EXAMPLE_DIR, load_example
 
 
@@ -30,6 +36,207 @@ def _make_tar_gz_bytes(entries: dict[str, bytes]) -> bytes:
             info.size = len(data)
             tf.addfile(info, io.BytesIO(data))
     return buf.getvalue()
+
+
+def _document_bytes(doc) -> bytes:
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("change", ["height", "columns"])
+def test_pasj_word_reports_wrong_a4_height_and_body_columns(change):
+    doc = Document(io.BytesIO(load_example("PASJ_Sample_Paper.docx")))
+    if change == "height":
+        doc.sections[0].page_height = Mm(250)
+    else:
+        for section in doc.sections:
+            section._sectPr.find(qn("w:cols")).set(qn("w:num"), "1")
+    margins = PasjWordChecker().check(_document_bytes(doc))["summary"]["Margins"]
+    assert not margins["ok"]
+    if change == "height":
+        assert "250" in margins["details"][0]["page_size"]
+        assert "297" in margins["details"][0]["notes"]
+    else:
+        assert margins["details"][0]["col_ok"], "The title section can be single-column."
+        assert not margins["details"][1]["col_ok"]
+        assert margins["details"][1]["expected_columns"] == 2
+
+
+def test_pasj_word_mixed_size_title_and_body_report_the_offending_runs():
+    doc = Document(io.BytesIO(load_example("PASJ_Sample_Paper.docx")))
+    parts = classify_paragraphs(doc)
+    title = parts.etitle_p
+    title.runs[0].font.size = Pt(24)
+    title.runs[-1].font.size = Pt(12)
+    paragraph = next(p for p in parts.body_p if p.style.name == "00) pasj-本文")
+    paragraph.add_run(" Oversized body text").font.size = Pt(18)
+
+    report = PasjWordChecker().check(_document_bytes(doc))["summary"]
+    title_result = report["Title"]["details"][1]
+    assert title_result["style_ok"] is False
+    assert f"「{title.runs[0].text.strip()}」 24 pt → 12 pt" in title_result["notes"]
+    assert any("「Oversized body text」 18 pt → 10 pt" in detail["status"]
+               for detail in report["Paragraphs"]["details"])
+
+
+def test_template_detection_uses_applied_word_styles_and_active_tex_class(client):
+    english_doc = Document()
+    english_doc.styles.add_style("00) pasj-本文", WD_STYLE_TYPE.PARAGRAPH)
+    english_doc.add_paragraph("An English paragraph.")
+    assert detect_template(_document_bytes(english_doc)) == "jacow"
+
+    doc = Document(io.BytesIO(load_example("PASJ_Sample_Paper.docx")))
+    jacow_style = doc.styles.add_style("JACoW_Paper Title", WD_STYLE_TYPE.PARAGRAPH)
+    assert detect_template(_document_bytes(doc)) == "pasj"
+    doc.add_paragraph("Conflicting title", jacow_style)
+    result = client.post("/api/scan/file", files={"file": ("paper.docx", _document_bytes(doc))})
+    assert result.status_code == 400
+    assert "Select the intended template" in result.json()["error"]
+
+    tex = b"%\\documentclass{PASJ2026}\n\\documentclass{jacow}\n" + "日本語の注釈".encode()
+    assert detect_template(tex, "latex") == "jacow"
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["JACoW_MSWord_Style_Guide.docx", "paper.tex"],
+)
+def test_scan_requests_confirmation_for_explicit_template_mismatch(client, filename):
+    files = {"file": (filename, load_example(filename))}
+    response = client.post("/api/scan/file", files=files, data={"template": "pasj", "verify_template": "true"})
+    assert response.status_code == 409
+    assert response.json()["code"] == "template_mismatch"
+    assert response.json()["selected_template"] == "pasj"
+    assert response.json()["detected_template"] == "jacow"
+
+    for choice in ("pasj", "jacow"):
+        confirmed = client.post("/api/scan/file", files=files, data={"template": choice, "verify_template": "false"})
+        assert confirmed.status_code == 200
+        assert confirmed.json()["detected_template"] == choice
+        assert confirmed.json()["report_id"]
+
+
+def test_scan_does_not_treat_english_text_as_a_confirmed_jacow_template(client):
+    doc = Document()
+    doc.add_paragraph("An English paragraph with no template style.")
+    result = client.post(
+        "/api/scan/file",
+        files={"file": ("draft.docx", _document_bytes(doc))},
+        data={"template": "pasj", "verify_template": "true"},
+    )
+    assert result.status_code == 200
+    assert result.json()["detected_template"] == "pasj"
+
+
+def test_latex_archive_resolves_nested_inputs_and_preserves_source_locations(client):
+    tex = load_example("latex_pasj_perfect.tex").replace(
+        b"\\maketitle", b"\\maketitle\n% \\input{ignored}\n\\input{sections/start}",
+    )
+    archive = _make_zip_bytes({
+        "paper/main.tex": tex,
+        "paper/sections/start.tex": b"\\include{more}\n",
+        "paper/sections/more.tex": "日本語です。\nここに，誤った句読点です．\n".encode(),
+    })
+    result = client.post("/api/scan/file", files={"file": ("paper.zip", archive)})
+    assert result.status_code == 200
+    report = result.json()
+    assert not report["coverage_notices"]
+    assert {(issue["type"], issue["file"], issue["line"]) for issue in report["issues"]} == {
+        ("BODY_PUNCTUATION_COMMA", "paper/sections/more.tex", 2),
+        ("BODY_PUNCTUATION_PERIOD", "paper/sections/more.tex", 2),
+    }
+
+
+@pytest.mark.parametrize("structured", [False, True])
+def test_saved_legacy_latex_reports_use_structured_issues(client, isolated_reports_dir, structured):
+    message = "要旨は英語で記述してください。 / Write the abstract in English."
+    stored = {
+        "report_type": "latex",
+        "filename": "legacy.tex",
+        "template_name": "PASJ 和文原稿",
+        "issuesFound": 1,
+        "body": f"Issue found in abstract: {message}",
+        "isabbreviated": False,
+    }
+    if structured:
+        stored["issues"] = [{"name": "abstract", "message": message, "file": "legacy.tex", "line": 6}]
+    report_id = reports.save(stored)
+    file_path = isolated_reports_dir / f"{report_id}.json"
+    original = file_path.read_bytes()
+
+    response = client.get(f"/api/reports/{report_id}.json")
+
+    assert response.status_code == 200
+    report = response.json()
+    assert report["report_id"] == report_id
+    assert report["detected_template"] == "pasj"
+    issue, = report["issues"]
+    assert issue["name"] == "abstract"
+    assert issue["message"] == "Write the abstract in English."
+    assert issue["message_ja"] == "要旨は英語で記述してください。"
+    if structured:
+        assert (issue["file"], issue["line"]) == ("legacy.tex", 6)
+    assert "body" not in report
+    assert file_path.read_bytes() == original
+
+
+def test_latex_checks_cross_references_through_expanded_source(client):
+    archive = _make_zip_bytes({
+        "main.tex": (
+            b"\\documentclass{jacow}\n"
+            b"\\begin{document}\n\\input{section}\n"
+            b"\\label{defined}\n\\end{document}"
+        ),
+        "section.tex": b"% \\ref{ignored}\n\\ref{defined}\n\\ref{absent}\n",
+    })
+    response = client.post("/api/scan/file", files={"file": ("paper.zip", archive)})
+
+    assert response.status_code == 200
+    issue, = response.json()["issues"]
+    assert (issue["type"], issue["file"], issue["line"]) == ("UNDEFINED_REFERENCE", "section.tex", 3)
+    assert issue["name"] == "absent"
+
+
+def test_latex_coverage_reports_missing_files_and_never_prints_passed():
+    source = b"\\documentclass{jacow}\n\\begin{document}\n\\input{section}\n\\bibliography{refs}\n\\end{document}"
+    report = RuleBasedLatexChecker("jacow_latex").check(source, "main.tex")
+    assert len(report["issues"]) == 0
+    assert {(notice["file"], notice["line"]) for notice in report["coverage_notices"]} >= {
+        ("main.tex", 3), ("main.tex", 4),
+    }
+    comment = render_comment(report, "https://example.org/report")
+    assert "CHECKS INCOMPLETE" in comment
+    assert "PASSED" not in comment
+
+
+def test_latex_archive_reads_bib_keys_but_marks_formatted_output_unchecked(client):
+    archive = _make_tar_gz_bytes({
+        "paper/main.tex": b"\\documentclass{jacow}\n\\addbibresource{refs.bib}\n"
+                          b"\\begin{document}\n\\cite{known,unknown}\n"
+                          b"\\printbibliography\n\\end{document}",
+        "paper/refs.bib": b"@article{known, title={Example}}\n",
+    })
+    result = client.post("/api/scan/file", files={"file": ("paper.tgz", archive)})
+    assert result.status_code == 200
+    report = result.json()
+    assert len(report["issues"]) == 0
+    assert len(report["coverage_notices"]) == 2
+    assert "formatted output" in report["coverage_notices"][0]["message"]
+    assert report["coverage_notices"][1]["message"].endswith(": unknown")
+    assert report["coverage_notices"][1]["line"] == 4
+
+
+def test_jacow_template_checks_the_selected_bibliography_branch():
+    tex = load_example("paper.tex")
+    checker = RuleBasedLatexChecker("jacow_latex")
+    manual = checker.check(tex)
+    assert manual["total_references"] > 0
+    assert not manual["coverage_notices"]
+
+    biblatex = checker.check(tex.replace(b"%biblatex,", b"biblatex,"))
+    assert biblatex["total_references"] == 0
+    assert any("formatted output" in notice["message"] for notice in biblatex["coverage_notices"])
 
 
 def test_pasj_word_catches_font_override_and_multi_paragraph_abstract():
@@ -116,7 +323,7 @@ def test_api_scan_file_supports_zip_and_tar_gz(client):
     assert data_zip["detected_template"] == "pasj"
     assert data_zip["filename"] == "main.tex"
     assert data_zip["archive_filename"] == "submission.zip"
-    assert data_zip["issuesFound"] == 0
+    assert len(data_zip["issues"]) == 0
 
     tgz_bytes = _make_tar_gz_bytes({"paper/PASJ_Sample_Paper.tex": load_example("PASJ_Sample_Paper.tex")})
     res_tgz = client.post(

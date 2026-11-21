@@ -15,12 +15,7 @@ enum Pages {
     Resources
 }
 
-type ReportType = "word" | "latex";
-
-type Report = {
-    type: ReportType,
-    report: WordReport | LaTeXReport
-};
+type Report = WordReport | LaTeXReport;
 
 interface ErrorBoundaryProps {
     children: React.ReactNode;
@@ -100,11 +95,11 @@ function MainContent() {
             <Nav page={page} changePage={changePage} />
             <div className="container pb-5">
                 {page === Pages.Upload && report === null && <Upload setReport={setReport} />}
-                {page === Pages.Upload && report !== null && report.type === 'word' && (
-                    <Word report={report.report as WordReport} onReset={resetReport} />
+                {page === Pages.Upload && report !== null && report.report_type === 'word' && (
+                    <Word report={report} onReset={resetReport} />
                 )}
-                {page === Pages.Upload && report !== null && report.type === 'latex' && (
-                    <LaTeX report={report.report as LaTeXReport} onReset={resetReport} />
+                {page === Pages.Upload && report !== null && report.report_type === 'latex' && (
+                    <LaTeX report={report} onReset={resetReport} />
                 )}
                 {page === Pages.Resources && <Resources />}
             </div>
