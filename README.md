@@ -21,9 +21,8 @@ cd backend && uv sync && cd ..
 cd frontend && npm ci && cd ..
 ```
 
-Python 3.12+ is supported by the backend configuration. The frontend uses Vite's
-development proxy to send `/api` requests to `http://localhost:8000`, so no
-environment file is needed for local development.
+Python 3.12+ is supported by the backend configuration. Vite's development proxy
+forwards `/api` requests to the backend configured in the `Procfile`.
 
 For Indico integration routes (`/api/indico/*`), configure `CATSCAN_INTERNAL_TOKEN`
 on the backend and set the same token in the Indico CatScan plugin settings
@@ -38,4 +37,4 @@ uvx honcho start
 ```
 
 Honcho reads the root `Procfile` by default. The frontend is available at
-`http://localhost:3000`, and the API at `http://localhost:8000`.
+`http://127.0.0.1:3080`, and the API at `http://127.0.0.1:3060`.
