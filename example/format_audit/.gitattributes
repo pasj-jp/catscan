@@ -1,0 +1,5 @@
+# Preserve the original bytes of the manuscript fixtures across checkouts.
+samples/** -text
+samples/**/*.tex whitespace=cr-at-eol
+# Preserve trailing spaces in this upstream reference as well.
+samples/pasj-latex/official-style-guide.tex whitespace=cr-at-eol,-blank-at-eol

@@ -34,3 +34,26 @@ These files are loaded as test fixtures in `backend/tests/`:
 - `test_example_suite.py`: End-to-end regression tests verifying that benchmark papers pass and issue papers trigger expected errors.
 - `test_pasj_validation.py`: Verification of PASJ Word and LaTeX checkers against official templates.
 - `scripts/populate_indico_papers.py`: Populates an Indico event with all 9 papers for live integration testing.
+
+## 4. Format audit corpus
+
+The [audit samples](format_audit/samples/) contain ready-to-upload Word,
+LaTeX, and multi-file ZIP manuscripts for PASJ and JACoW. The runner copies
+these versioned files to the output directory, scans each one through the
+upload API, and records the expected check, observed diagnostics, and result.
+Run from the repository root:
+
+```sh
+uv run --project backend python example/format_audit/run.py --output /tmp/catscan-format-audit
+```
+
+Open `RESULTS.md` in the output directory for the sample index. The ZIP
+contains the manuscripts and results. The source templates, mutations, and
+expected diagnostics are defined in [`format_audit/cases.py`](format_audit/cases.py).
+Use `--generate-only` to regenerate samples from the templates and
+`--reuse-samples` to audit the files already in the output directory.
+
+Findings are compared with the source baseline for each format. Some cases
+probe checks the current implementation may miss. Those cases stay in the
+report so the corpus can measure progress as rules change. The JACoW Word
+guide retains its original examples and baseline findings.
