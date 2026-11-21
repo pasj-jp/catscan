@@ -1,6 +1,6 @@
 import re
-from .styles import check_style, VALID_STYLES, VALID_NON_JACOW_STYLES
-from .page import get_text
+from ..common.docx_utils import check_style, get_text
+from .styles import VALID_STYLES, VALID_NON_JACOW_STYLES
 from .constants import (
     HEADING_STYLES,
     PARAGRAPH_STYLES,

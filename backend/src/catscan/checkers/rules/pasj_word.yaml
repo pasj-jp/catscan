@@ -341,13 +341,26 @@ sections:
     title: "Paragraphs & Punctuation Check (本文・句読点検査)"
     anchor: "paragraphs"
     extra_info:
-      title: "句読点検査結果 (Punctuation Breakdown)"
+      title: "本文・句読点の検査結果 (Body Text & Punctuation)"
       headers:
         - { label: "検査項目 (Item)", width: "25%" }
         - { label: "検出数 (Count)", width: "15%" }
         - { label: "判定・説明 (Diagnostic Status)" }
         - { label: "判定 (Result)", width: "100px", center: true }
-      columns: ["item", "count", "status", "punct_ok"]
+      columns: ["item", "count", "status", "ok"]
+
+    elements:
+      - role: "body"
+        type: "本文 (Body Text)"
+        required: false
+        scoring_keys: ["style_ok"]
+        pass_message: "適合 (10 pt・両端揃え)"
+        checks:
+          - check: "font"
+            size: 10.0
+            alignment: "JUSTIFY"
+            key: "style_ok"
+            fail_message: "本文を 10 pt・両端揃えに設定してください"
 
     rules:
       body:
@@ -505,12 +518,14 @@ sections:
     extra_info:
       title: "参考文献検査結果 (References Breakdown)"
       headers:
-        - { label: "文献テキスト (Reference Text)" }
-        - { label: "スタイル (Style)", width: "24%" }
+        - { label: "引用・文献テキスト (Citation / Reference Text)" }
+        - { label: "箇所 (Location)" }
+        - { label: "スタイル (Style)" }
         - { label: "診断結果・説明 (Diagnostic Notes)" }
         - { label: "DOI/URL", width: "85px", center: true }
         - { label: "スタイル", width: "85px", center: true }
-      columns: ["text", "style", "notes", "doi_ok", "style_ok"]
+        - { label: "引用照合", width: "85px", center: true }
+      columns: ["text", "location", "style", "notes", "doi_ok", "style_ok", "citation_ok"]
 
     elements:
       - role: "reference"
@@ -570,7 +585,8 @@ sections:
         - { label: "段数 (Columns)" }
         - { label: "段間隔 (cm)" }
         - { label: "段組判定", center: true }
-      columns: ["loop.index", "page_size", "margins", "margins_ok", "col_number", "col_gutter", "col_ok"]
+        - { label: "診断結果・説明 (Diagnostic Notes)" }
+      columns: ["loop.index", "page_size", "margins", "margins_ok", "col_number", "col_gutter", "col_ok", "notes"]
     extra_rules:
       - "用紙サイズは A4（幅 210 mm × 高さ 297 mm）、余白は 上 37 mm、下 19 mm、左 20 mm、右 20 mm とします。"
       - "本文は 2段組（段幅 82.5 mm、段の間隔 5.0 mm = 0.5 cm）で設定してください。"

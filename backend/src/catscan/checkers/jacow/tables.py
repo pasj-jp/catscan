@@ -6,7 +6,7 @@ from docx.table import _Cell, _Row, Table
 from docx.text.paragraph import Paragraph
 from lxml.etree import _Element
 
-from .styles import check_style
+from ..common.docx_utils import check_style
 from titlecase import titlecase
 from .constants import (
     TABLE_STYLES as STYLES,

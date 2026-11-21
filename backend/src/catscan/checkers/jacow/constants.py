@@ -254,6 +254,6 @@ REFERENCE_EXTRA_RULES = [
 REFERENCE_HELP_INFO = 'SCEReferences'
 REFERENCE_EXTRA_INFO = {
     'title': 'Reference Breakdown',
-    'headers': '<thead><tr><th>Ref</th><th>Order Ok</th><th>Style Ok</th><th>Text</th><th>In-text</th></tr></thead>',
-    'columns': ['ref', 'order_ok', 'style_ok', 'text', 'in_text']
+    'headers': '<thead><tr><th>Ref</th><th>Order Ok</th><th>Style Ok</th><th>Text</th><th>Cited</th><th>Location</th><th>Notes</th></tr></thead>',
+    'columns': ['id', 'order_ok', 'style_ok', 'text', 'used_ok', 'location', 'notes']
 }

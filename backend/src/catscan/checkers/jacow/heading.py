@@ -1,5 +1,5 @@
 import re
-from .styles import check_style
+from ..common.docx_utils import check_style
 from .constants import HEADING_STYLES, HEADING_EXTRA_RULES as EXTRA_RULES, HEADING_HELP_INFO as HELP_INFO
 
 

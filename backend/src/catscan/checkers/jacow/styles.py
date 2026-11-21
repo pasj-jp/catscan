@@ -1,15 +1,3 @@
-from ..common.docx_utils import (
-    get_style_details,
-    check_style,
-    check_style_detail,
-    get_compare,
-    get_paragraph_alignment,
-    get_indents,
-    get_paragraph_space,
-    get_style_font_run,
-    get_style_font,
-)
-
 VALID_STYLES = [
     'JACoW_Abstract_Heading',
     'JACoW_Author List',

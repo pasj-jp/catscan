@@ -1,68 +1,43 @@
-def score_node(node):
-    positive, unknown, negative = 0, 0, 0
+from collections.abc import Iterator
+from typing import Any
 
+
+def detail_rows(node: Any) -> Iterator[dict[str, Any]]:
     if isinstance(node, list):
-        for row in node:
-            for name, value in row.items():
-                if name == "text":
-                    continue
-                if "_ok" in name:
-                    if value == 2:
-                        unknown += 1
-                    elif value is False:
-                        negative += 1
-                    elif value is True:
-                        positive += 1
-                elif isinstance(value, str) and "should be" in value:
-                    negative += 1
+        for item in node:
+            yield from detail_rows(item)
     elif isinstance(node, dict):
-        for name, value in node.items():
-            if name == "text":
-                continue
-            if "_ok" in name:
-                if value == 2:
-                    unknown += 1
-                elif value is False:
-                    negative += 1
-                elif value is True:
-                    positive += 1
-            elif isinstance(value, str) and "should be" in value:
-                negative += 1
-
-    return positive, unknown, negative
+        if any(key == "ok" or "_ok" in key for key in node):
+            yield node
+        else:
+            for item in node.values():
+                yield from detail_rows(item)
 
 
-def check_styles(section):
-    total_unknown, total_negative, total_positive = 0, 0, 0
-    if "details" in section:
-        if isinstance(section["details"], list):
-            for detail in section["details"]:
-                positive, unknown, negative = score_node(detail)
-                total_unknown += unknown
-                total_positive += positive
-                total_negative += negative
-        elif isinstance(section["details"], dict):
-            for node in section["details"]:
-                for detail in section["details"][node]:
-                    positive, unknown, negative = score_node(detail)
-                    total_unknown += unknown
-                    total_positive += positive
-                    total_negative += negative
-
-    return total_positive, total_unknown, total_negative
+def row_checks(row: dict[str, Any]) -> Iterator[tuple[str, bool | int]]:
+    for key, value in row.items():
+        if key == "text":
+            continue
+        if "_ok" in key and (isinstance(value, bool) or value == 2):
+            yield key, value
+        elif isinstance(value, str) and "should be" in value:
+            yield key, False
 
 
 def score(summary):
-    total_positive, total_unknown, total_negative = 0, 0, 0
-
     scores = {}
     for name, section in summary.items():
-        if name != "Languages":
-            positive, unknown, negative = check_styles(section)
-            total_unknown += unknown
-            total_positive += positive
-            total_negative += negative
-            scores[name] = (positive, unknown, negative)
-
-    scores["total"] = (total_positive, total_unknown, total_negative)
+        if name == "Languages":
+            continue
+        passed = warnings = errors = 0
+        for row in detail_rows(section.get("details")):
+            for _, verdict in row_checks(row):
+                if verdict is True:
+                    passed += 1
+                elif verdict is False:
+                    errors += 1
+                else:
+                    warnings += 1
+        scores[name] = (passed, warnings, errors)
+    scores["total"] = tuple(map(sum, zip(*scores.values()))) if scores else (0, 0, 0)
     return scores

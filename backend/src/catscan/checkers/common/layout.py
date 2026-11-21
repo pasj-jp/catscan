@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Tuple
-from lxml.etree import _Element
+from docx.document import Document
+from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
 
 from .docx_utils import get_page_size, convert_twips_to_cm
 
@@ -67,26 +69,43 @@ def check_margins(section, require_a4: bool = False) -> bool:
     return False
 
 
-def get_columns(section) -> Tuple[int, float, bool]:
-    num = 1
-    space = 0.0
-    ok = False
-    for c1 in section._sectPr.iterchildren():
-        if isinstance(c1, _Element) and "cols" in str(c1):
-            for c2 in c1.items():
-                if "num" in str(c2):
-                    num = int(c2[1])
-                if "space" in str(c2):
-                    space = convert_twips_to_cm(c2[1])
-    if num == 1 or (num == 2 and 0.48 <= space <= 0.54):
-        ok = True
+def get_columns(section, *, require_two_columns: bool = False, require_a4: bool = False) -> Tuple[int, float, bool]:
+    cols = section._sectPr.find(qn("w:cols"))
+    if cols is None:
+        return 1, 0.0, not require_two_columns
+    custom = cols.findall(qn("w:col")) if cols.get(qn("w:equalWidth")) in {"0", "false", "off"} else []
+    num = len(custom) if custom else int(cols.get(qn("w:num"), "1"))
+    space_twips = (custom[0] if custom else cols).get(qn("w:space"), "0")
+    space = convert_twips_to_cm(space_twips)
+    maximum_gutter = 0.52 if require_a4 else 0.54
+    gutter_ok = 0.48 <= space <= maximum_gutter
+    width_ok = not (require_a4 and require_two_columns and custom) or all(
+        col.get(qn("w:w")) is not None and 8.23 <= convert_twips_to_cm(col.get(qn("w:w"))) <= 8.27
+        for col in custom
+    )
+    ok = (num == 1 and not require_two_columns) or (num == 2 and gutter_ok and width_ok)
     return num, space, ok
 
 
-def check_sections(doc, require_a4: bool = False) -> List[Dict[str, Any]]:
+def paragraph_sections(doc: Document, paragraphs: list[Paragraph]) -> set[int]:
+    elements = {paragraph._p for paragraph in paragraphs}
+    sections = set()
+    index = 0
+    for paragraph in doc.paragraphs:
+        if paragraph._p in elements:
+            sections.add(index)
+        if paragraph._p.xpath("./w:pPr/w:sectPr"):
+            index += 1
+    return sections
+
+
+def check_sections(
+    doc, require_a4: bool = False, *, body_sections: set[int] | None = None
+) -> List[Dict[str, Any]]:
     sections = []
-    for section in doc.sections:
-        cols = get_columns(section)
+    for index, section in enumerate(doc.sections):
+        require_two_columns = body_sections is not None and index in body_sections
+        cols = get_columns(section, require_two_columns=require_two_columns, require_a4=require_a4)
         sections.append({
             "page_size": get_page_size(section),
             "margins_ok": check_margins(section, require_a4=require_a4),
@@ -94,5 +113,6 @@ def check_sections(doc, require_a4: bool = False) -> List[Dict[str, Any]]:
             "col_number": cols[0],
             "col_gutter": cols[1],
             "col_ok": cols[2],
+            **({"expected_columns": 2 if require_two_columns else None} if body_sections is not None else {}),
         })
     return sections

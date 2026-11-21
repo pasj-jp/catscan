@@ -3,8 +3,8 @@ Evaluator for Word rules: applies check primitives to extracted elements.
 """
 from typing import Any, Dict, List, Optional, Union
 
-from .primitives import ElementContext, get_primitive
-from ..rules.schema import WordCheckRule, WordElementRule, WordSectionRule
+from .primitives import ElementContext, font_problems, get_primitive
+from ..rules.schema import WordElementRule, WordSectionRule
 
 
 DEFAULT_KEYS_BY_PRIMITIVE = {
@@ -68,8 +68,13 @@ def evaluate_element(
         kwargs.pop("key", None)
         fail_msg = kwargs.pop("fail_message", None)
 
+        problems = []
         try:
-            passed = prim_fn(element, **kwargs)
+            if check.check == "font":
+                problems = font_problems(element, **kwargs)
+                passed = not problems
+            else:
+                passed = prim_fn(element, **kwargs)
         except Exception:
             passed = False
 
@@ -77,6 +82,7 @@ def evaluate_element(
             detail[target_key] = False
             if fail_msg and fail_msg not in fail_notes:
                 fail_notes.append(fail_msg)
+            fail_notes.extend(problems)
 
     # Determine overall ok for this element row
     detail["ok"] = all(bool(detail.get(k, True)) for k in rule.scoring_keys)

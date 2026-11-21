@@ -1,8 +1,10 @@
 import io
 import operator
+import re
 from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
 from docx import Document
-from docx.shared import Inches, Mm, Twips
+from docx.oxml.ns import qn
+from docx.shared import Twips
 from docx.oxml.text.parfmt import CT_PPr, CT_Ind
 from docx.text.paragraph import Paragraph
 
@@ -69,17 +71,16 @@ def check_title_case(text: str, ratio: float = 0.7) -> bool:
 
 
 def get_page_size(section) -> str:
-    width = round(section.page_width, -4)
-    if width == round(Mm(210), -4):
-        height = round(section.page_height, -4)
-        if height == round(Mm(279.5), -4):
-            return "JACoW"
-        return "A4"
-    elif width == round(Inches(8.5), -4):
-        return "Letter"
-    else:
-        mm = round(round(width, -4) / 36000, 2)
-        return f"Unknown page size with width {mm} mm"
+    if section.page_width is None or section.page_height is None:
+        return "Page dimensions unavailable"
+    width, height = section.page_width.mm, section.page_height.mm
+    # Word templates round these dimensions when storing them in twips.
+    for name, expected_width, expected_height in (
+        ("A4", 210, 297), ("JACoW", 210, 279.5), ("Letter", 215.9, 279.4)
+    ):
+        if abs(width - expected_width) <= 0.15 and abs(height - expected_height) <= 0.15:
+            return name
+    return f"{round(width, 2):g} × {round(height, 2):g} mm"
 
 
 def convert_twips_to_cm(twips: Any) -> float:
@@ -98,19 +99,12 @@ def get_text(p: Paragraph) -> str:
 
 
 def get_paragraph_alignment(paragraph: Paragraph) -> Optional[str]:
-    alignment = paragraph.style.paragraph_format.alignment
-    if alignment is None and paragraph.style.base_style is not None and \
-            paragraph.style.base_style.paragraph_format.alignment is not None:
-        alignment = paragraph.style.base_style.paragraph_format.alignment
-
-    if paragraph.alignment is not None:
-        alignment = paragraph.alignment
-    elif paragraph.paragraph_format.alignment is not None:
-        alignment = paragraph.paragraph_format.alignment
-
-    if alignment:
-        return getattr(alignment, "name", getattr(alignment, "_member_name", str(alignment)))
-    return None
+    alignment = paragraph.alignment
+    for style in _style_chain(paragraph.style):
+        if alignment is not None:
+            break
+        alignment = style.paragraph_format.alignment
+    return alignment.name if alignment is not None else None
 
 
 def get_indents(style_format):
@@ -283,6 +277,58 @@ def get_style_details(p: Paragraph, url: Optional[Dict[str, Any]] = None) -> Dic
     }
 
 
+_EAST_ASIAN = re.compile(r"[\u3000-\u30ff\u3400-\u9fff\uff00-\uffef]")
+
+
+def _style_chain(style):
+    seen = set()
+    while style is not None and style.style_id not in seen:
+        seen.add(style.style_id)
+        yield style
+        style = style.base_style
+
+
+def _style_run_properties(style):
+    return [base.element.rPr for base in _style_chain(style) if base.element.rPr is not None]
+
+
+def get_effective_runs(paragraph: Paragraph):
+    """Yield the effective typography of each visible run and script."""
+    defaults = paragraph.part.styles.element.xpath("./w:docDefaults/w:rPrDefault/w:rPr")
+    paragraph_properties = [*_style_run_properties(paragraph.style), *defaults]
+    for run in paragraph.iter_inner_content():
+        runs = run.runs if hasattr(run, "runs") else [run]
+        for text_run in runs:
+            text = text_run.text.strip()
+            if not text:
+                continue
+            properties = [
+                text_run.element.rPr,
+                *_style_run_properties(text_run.style),
+                *paragraph_properties,
+            ]
+            properties = [prop for prop in properties if prop is not None]
+
+            def first_value(tag, attr="val", default=None):
+                for prop in properties:
+                    child = prop.find(qn(f"w:{tag}"))
+                    if child is not None and (value := child.get(qn(f"w:{attr}"), default)) is not None:
+                        return value
+                return None
+
+            latin = _EAST_ASIAN.sub("", text).strip()
+            east_asian = _EAST_ASIAN.search(text)
+            latin_font = first_value("rFonts", "ascii") or first_value("rFonts", "hAnsi")
+            east_asian_font = first_value("rFonts", "eastAsia") or latin_font
+            names = [font for present, font in ((latin, latin_font), (east_asian, east_asian_font)) if present]
+            yield text, {
+                "font_names": list(dict.fromkeys(names)),
+                "font_size": float(first_value("sz") or 20) / 2,
+                "bold": first_value("b", default="1") in {"1", "true", "on"},
+                "italic": first_value("i", default="1") in {"1", "true", "on"},
+            }
+
+
 def get_compare(inp, relate, cut):
     ops = {
         ">": operator.gt,
@@ -294,64 +340,46 @@ def get_compare(inp, relate, cut):
     return ops[relate](inp, cut)
 
 
-def check_style(p: Paragraph, compare: Dict[str, Any], url: Optional[Dict[str, Any]] = None) -> Tuple[bool, Dict[str, Any]]:
+def check_style(
+    p: Paragraph, compare: Dict[str, Any], url: Optional[Dict[str, Any]] = None,
+    *, each_run_size: bool = False,
+) -> Tuple[bool, Dict[str, Any]]:
     detail = get_style_details(p, url)
     style_ok = True
-    for key, value in compare.items():
-        if key not in detail:
-            continue
-        elif key in ["space_before", "space_after"]:
-            if isinstance(compare[key], list):
-                result = detail[key] is not None and get_compare(detail[key], compare[key][0], compare[key][1])
-                if not result:
-                    detail[key] = f"{detail[key]} should be {' '.join(map(str, compare[key]))}"
-            else:
-                result = any([detail[key] == compare[key], detail[key] is None and compare[key] == 0.0])
-                if not result:
-                    detail[key] = f"{detail[key]} should be {compare[key]}"
-        else:
-            result = detail[key] == compare[key]
-            if not result:
-                detail[key] = f"{detail[key]} should be {compare[key]}"
-        if not result:
-            style_ok = False
+    if each_run_size and "font_size" in compare:
+        sizes = {font["font_size"] for _, font in get_effective_runs(p)}
+        wrong_sizes = sizes - {compare["font_size"]}
+        if wrong_sizes:
+            detail["font_size"] = ", ".join(f"{size:g} pt" for size in sorted(wrong_sizes))
+        elif sizes:
+            detail["font_size"] = compare["font_size"]
 
-    for key in list(detail.keys()):
-        if key != "all_caps" and key not in compare:
-            detail[key] = "NA"
+    for key, actual in detail.items():
+        if key not in compare:
+            if key != "all_caps":
+                detail[key] = "NA"
+            continue
+        expected = compare[key]
+        if key in {"space_before", "space_after"} and isinstance(expected, list):
+            relation, bound = expected
+            matches = actual is not None and get_compare(actual, relation, bound)
+            expected = f"{relation} {bound}"
+        elif isinstance(expected, list):
+            matches = actual in expected
+        else:
+            matches = actual == expected or (
+                key in {"space_before", "space_after"} and actual is None and expected == 0
+            )
+        if not matches:
+            style_ok = False
+            detail[key] = f"{actual} should be {expected}"
+
     return style_ok, detail
 
 
-def check_style_detail(p: Paragraph, compare: Dict[str, Any]) -> Dict[str, Any]:
-    detail = get_style_details(p)
-    style_ok = True
-    for key, value in compare.items():
-        if key not in detail:
-            continue
-        elif key in ["space_before", "space_after"]:
-            if isinstance(compare[key], list):
-                result = detail[key] is not None and get_compare(detail[key], compare[key][0], compare[key][1])
-                if not result:
-                    detail[key] = f"{detail[key]} should be {' '.join(map(str, compare[key]))}"
-            else:
-                result = any([detail[key] == compare[key], detail[key] is None and compare[key] == 0.0])
-                if not result:
-                    detail[key] = f"{detail[key]} should be {compare[key]}"
-        else:
-            if isinstance(compare[key], list):
-                result = detail[key] in compare[key]
-            else:
-                result = detail[key] == compare[key]
-            if not result:
-                detail[key] = f"{detail[key]} should be {compare[key]}"
-        if not result:
-            style_ok = False
-        detail["style_ok"] = style_ok
-
-    for key in list(detail.keys()):
-        if key not in ["all_caps", "style_ok"] and key not in compare:
-            detail[key] = "NA"
-    return detail
+def check_style_detail(p: Paragraph, compare: Dict[str, Any], *, each_run_size: bool = False) -> Dict[str, Any]:
+    style_ok, detail = check_style(p, compare, each_run_size=each_run_size)
+    return {"style_ok": style_ok, **detail}
 
 
 def to_element(p: Paragraph) -> "ElementContext":

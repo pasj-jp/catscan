@@ -1,5 +1,4 @@
-from .page import get_text, check_title_case
-from .styles import check_style_detail
+from ..common.docx_utils import check_style_detail, check_title_case, get_text
 from .constants import TITLE_STYLES as STYLES, TITLE_EXTRA_RULES as EXTRA_RULES, TITLE_HELP_INFO as HELP_INFO
 
 
@@ -19,7 +18,7 @@ def get_title_summary(paragraphs):
     for p in paragraphs:
         if p.text.strip():
             detail = get_title_details(p)
-            detail.update(check_style_detail(p, style_compare))
+            detail.update(check_style_detail(p, style_compare, each_run_size=True))
             title_style_ok = p.style.name == style_compare['styles']['jacow']
             detail.update({'title_style_ok': title_style_ok, 'style': p.style.name})
             title_details.append(detail)

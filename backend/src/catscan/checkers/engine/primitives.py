@@ -5,10 +5,11 @@ Each primitive performs a single focused verification on an Element.
 Primitives return a CheckResult (or boolean) indicating whether the check passed.
 """
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from ..common.docx_utils import check_title_case
+from ..common.docx_utils import check_title_case, get_effective_runs
 
 # Default regex for Japanese characters (Hiragana, Katakana, Kanji)
 DEFAULT_CJK_PATTERN = re.compile(r'[\u3040-\u30ff\u4e00-\u9faf]')
@@ -80,7 +81,15 @@ def check_uppercase(
 
 
 @register_primitive("font")
-def check_font(
+def check_font(element: ElementContext, **kwargs) -> bool:
+    return not font_problems(element, **kwargs)
+
+
+def _font_family(name: str) -> str:
+    return "".join(unicodedata.normalize("NFKC", name).casefold().split())
+
+
+def font_problems(
     element: ElementContext,
     name: Optional[Union[str, List[str]]] = None,
     size: Optional[float] = None,
@@ -91,45 +100,51 @@ def check_font(
     space_before: Optional[float] = None,
     space_after: Optional[float] = None,
     **kwargs
-) -> bool:
-    """Verify font family, size with tolerance, formatting and alignment."""
+) -> List[str]:
+    """Report mismatches in visible text runs and paragraph formatting."""
     st = element.style_details or {}
-
-    if name is not None:
-        expected_names = [name] if isinstance(name, str) else list(name)
-        actual_name = st.get("font_name") or ""
-        if not any(exp.lower() in actual_name.lower() or actual_name.lower() in exp.lower() for exp in expected_names):
-            return False
-
-    if size is not None:
-        actual_size = st.get("font_size")
-        if actual_size is None or abs(float(actual_size) - size) > size_tolerance:
-            return False
-
-    if bold is not None:
-        if bool(st.get("bold")) != bold:
-            return False
-
-    if italic is not None:
-        if bool(st.get("italic")) != italic:
-            return False
-
+    problems: List[str] = []
+    names = [name] if isinstance(name, str) else name or []
+    expected_names = {_font_family(font) for font in names}
+    runs = list(get_effective_runs(element.paragraph)) if element.paragraph is not None else []
+    if not runs:
+        runs = [(element.text, {**st, "font_names": [st.get("font_name")]})]
+    for text, formatting in runs:
+        actual_fonts = formatting["font_names"]
+        actual_size = formatting.get("font_size")
+        mismatches = []
+        if expected_names and any(not font or _font_family(font) not in expected_names for font in actual_fonts):
+            mismatches.append(f"{', '.join(font or '?' for font in actual_fonts)} → {' / '.join(names)}")
+        if size is not None and (actual_size is None or abs(float(actual_size) - size) > size_tolerance):
+            actual = f"{actual_size:g} pt" if actual_size is not None else "?"
+            mismatches.append(f"{actual} → {size:g} pt")
+        if bold is not None and bool(formatting.get("bold")) != bold:
+            mismatches.append("太字にしてください" if bold else "太字を解除してください")
+        if italic is not None and bool(formatting.get("italic")) != italic:
+            mismatches.append("斜体にしてください" if italic else "斜体を解除してください")
+        if mismatches:
+            snippet = text[:32] + ("…" if len(text) > 32 else "")
+            problem = f"「{snippet}」 {'、'.join(mismatches)}"
+            if problem not in problems:
+                problems.append(problem)
+            if len(problems) == 3:
+                break
     if alignment is not None:
         actual_align = str(st.get("alignment") or "").upper()
         if actual_align != alignment.upper():
-            return False
+            problems.append(f"配置 {actual_align or '?'} → {alignment}")
 
     if space_before is not None:
         actual_sb = st.get("space_before")
         if actual_sb is not None and abs(float(actual_sb) - space_before) > 1.0:
-            return False
+            problems.append(f"段落前 {actual_sb:g} pt → {space_before:g} pt")
 
     if space_after is not None:
         actual_sa = st.get("space_after")
         if actual_sa is not None and abs(float(actual_sa) - space_after) > 1.0:
-            return False
+            problems.append(f"段落後 {actual_sa:g} pt → {space_after:g} pt")
 
-    return True
+    return problems
 
 
 @register_primitive("regex_match")

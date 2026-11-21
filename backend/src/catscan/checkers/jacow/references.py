@@ -1,6 +1,6 @@
 import re
-from itertools import chain
-from .styles import check_style, get_style_font_run
+from ..common.citations import CITATION, ENTRY_NUMBER, citation_ranges, missing_labels, numbers_in_range
+from ..common.docx_utils import check_style, get_style_font_run
 from .constants import (
     REFERENCE_STYLES as STYLES,
     REFERENCE_EXTRA_RULES as EXTRA_RULES,
@@ -8,90 +8,62 @@ from .constants import (
     REFERENCE_EXTRA_INFO as EXTRA_INFO,
 )
 
-RE_REFS_LIST = re.compile(r'^\[([\d]+)\]')
-RE_REFS_LIST_TAB = re.compile(r'^\[([\d]+)\]\t')
-RE_REFS_INTEXT = re.compile(r'(?<!^)\[([\d ,-]+)\]')
+RE_REFS_LIST_TAB = re.compile(r'^\[\d+\]\t')
 
 
-def _ref_to_int(ref):
-    try:
-        return [int(ref)]
-    except ValueError:
-        if ',' in ref:
-            return list(
-                chain.from_iterable(_ref_to_int(i) for i in ref.split(',') if i.strip())
-            )
-        elif '-' in ref:
-            return list(range(*(int(v) + i for i, v in enumerate(ref.split('-')))))
-        raise
+def extract_references(doc):
+    references = []
+    citations = []
+    in_manuscript = in_bibliography = False
+    complete = True
+    for index, paragraph in enumerate(doc.paragraphs, 1):
+        text = paragraph.text.strip()
+        if not in_manuscript:
+            in_manuscript = text.casefold() == "abstract"
+            continue
+        if text.casefold() == "references" and "subsection" not in paragraph.style.name.casefold():
+            in_bibliography = True
+            continue
+        if in_bibliography and (match := ENTRY_NUMBER.match(text)):
+            references.append(dict(id=int(match[1]), text=text, style=paragraph.style.name, p=paragraph))
+        elif in_bibliography and text and paragraph.style.name.startswith("JACoW_Reference"):
+            complete = False
+        else:
+            citations.extend((index, text, match) for match in CITATION.finditer(text))
 
-
-def extract_references(doc, strict_styles=False):
-    data = iter(doc.paragraphs)
-    references_in_text = []
-
-    # don't start looking until abstract header
-    for p in data:
-        if p.text.strip().lower() == 'abstract':
-            break
-    else:
-        raise Exception('Abstract header not found')
-
-    # find all references in text and references list
-    references_list = []
-    ref_list_start = 0
-    for i, p in enumerate(data):
-        for ref in RE_REFS_INTEXT.findall(p.text):
-            references_in_text.append(_ref_to_int(ref))
-
-        refs = RE_REFS_LIST.findall(p.text.strip())
-        if refs:
-            for ref in refs:
-                if int(ref) == 1:
-                    ref_list_start = i
-                references_list.append(
-                    dict(id=int(ref), text=p.text.strip(), style=p.style.name, p=p)
-                )
-        elif ref_list_start > 0:
-            should_find = references_list[-1]['id'] + 1
-            if str(should_find) in p.text.strip()[:4]:  # only look in first 4 chars
-                references_list.append(
-                    dict(
-                        id=should_find,
-                        text=p.text.strip(),
-                        style=p.style.name,
-                        p=p,
-                        text_ok=False,
-                        text_error=f"Number format wrong should be [{should_find}]"
-                    )
-                )
-
-    # check references in body are in correct order
-    stack = [0]
-    seen = []
+    numbers = sorted({reference["id"] for reference in references})
+    used_references = set()
     out_of_order = set()
-    for _range in references_in_text:
-        for _ref in _range:
-            if _ref in stack:
-                continue
-            if _ref - stack[-1] == 1:
-                stack.append(_ref)
-            elif _ref not in seen:
-                seen.append(_ref)
-        for _ref in seen.copy():
-            if _ref - stack[-1] == 1:
-                stack.append(_ref)
-                seen.remove(_ref)
-        if len(seen) > 0:
-            out_of_order.update(seen)
-
-    # get a set of references so we know which ones are used
-    used_references = set(chain.from_iterable(references_in_text))
+    findings = []
+    next_number = 1
+    for index, text, match in citations:
+        missing = []
+        cited_here = set()
+        for first, last in citation_ranges(match[1]):
+            present = numbers_in_range(numbers, first, last)
+            if complete:
+                missing.extend(missing_labels(first, last, present))
+            cited_here.update(present)
+        newly_cited = cited_here - used_references
+        used_references.update(newly_cited)
+        while next_number in used_references:
+            next_number += 1
+        out_of_order.update(number for number in newly_cited if number > next_number)
+        if missing:
+            findings.append({
+                "id": "",
+                "text": text,
+                "paragraph_number": index,
+                "location": f"Paragraph {index}",
+                "citation_issue": "missing_reference",
+                "citation_ok": False,
+                "notes": f"No bibliography entry for {', '.join(dict.fromkeys(missing))}.",
+            })
 
     # check reference styles, order etc
-    ref_count = len(references_list)
+    ref_count = len(references)
     seen = set()
-    for i, ref in enumerate(references_list, 1):
+    for i, ref in enumerate(references, 1):
         if ref['id'] in seen:
             ref['duplicate'] = True
             ref['unique_ok'] = False
@@ -99,7 +71,7 @@ def extract_references(doc, strict_styles=False):
             ref['unique_ok'] = True
         seen.add(ref['id'])
         ref['order_ok'] = i == ref['id'] and i not in out_of_order
-        ref['used_ok'] = i in used_references
+        ref['used_ok'] = ref['id'] in used_references
         ref['text_ok'] = True
         ref['text_error'] = ''
 
@@ -149,37 +121,20 @@ def extract_references(doc, strict_styles=False):
             style_compare,
             url={'has_url': has_url, 'url_font': url_font, 'starts': starts}
         )
-        if strict_styles:
-            ref['style_ok'] = ref['style'] == style_compare['styles']['jacow']
-            if not ref['style_ok']:
-                ref['style'] = f"{ref['style']} should be '{style_compare['styles']['jacow']}'"
-        else:
-            ref['style_ok'] = style_ok
-
+        ref['style_ok'] = style_ok
         ref.update(detail)
         # delete p from dictionary since it is un unserialisable Paragragh
         del ref['p']
 
-    return references_in_text, references_list
+    return references, findings
 
 
 def get_reference_summary(doc):
-    references_in_text, references_list = extract_references(doc)
-    # Use checks first
-    ok = references_list and all([
-            all([tick['text_ok'], tick['used_ok'], tick['order_ok'], tick['unique_ok']])
-            for tick in references_list])
-
-    # Check style use checks pass
-    if ok:
-        for tick in references_list:
-            if not tick['style_ok']:
-                # If find a false then the result is false
-                ok = False
-                break
-            elif tick['style_ok'] == 2:
-                # If find a 2 (?) then result is 2 unless a false is found later
-                ok = 2
+    references, findings = extract_references(doc)
+    ok = not findings and all(
+        row[key] for row in references
+        for key in ("text_ok", "used_ok", "order_ok", "unique_ok", "style_ok")
+    )
 
     return {
         'title': 'References',
@@ -189,7 +144,7 @@ def get_reference_summary(doc):
         'extra_info': EXTRA_INFO,
         'ok': ok,
         'message': 'Reference issues',
-        'details': references_list,
+        'details': findings + references,
         'anchor': 'references',
         'show_total': True,
     }

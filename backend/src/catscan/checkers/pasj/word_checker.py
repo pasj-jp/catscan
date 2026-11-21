@@ -1,16 +1,18 @@
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-from docx import Document
+from docx.document import Document
 from docx.text.paragraph import Paragraph
 
 from ..common.docx_utils import open_docx, doc_metadata, to_element
-from ..common.layout import check_sections
+from ..common.layout import check_sections, paragraph_sections
 from ..common.score import score
 from ..engine import evaluate_section
+from ..engine.evaluator import evaluate_element
 from ..registry import CJK_RE
 from ..rules import load_rules
 from ..rules.schema import WordRules, WordSectionRule
+from .references import build_references_section
 
 
 @dataclass
@@ -200,9 +202,31 @@ def build_paragraphs_section(body_p: List[Paragraph], rule: WordSectionRule) -> 
         },
     ]
 
+    body_style = rule.rules["body"]["styles"]["pasj"]
+    styled_body = [p for p in body_p if p.style.name == body_style]
+    formatting_ok = True
+    for index, paragraph in enumerate(styled_body, 1):
+        detail = evaluate_element(to_element(paragraph), rule.elements[0])
+        if not detail["ok"]:
+            formatting_ok = False
+            para_details.append({
+                "item": f"本文の書式 (Body Text {index})",
+                "status": detail["notes"],
+                "style_ok": False,
+            })
+    if styled_body and formatting_ok:
+        para_details.append({
+            "item": "本文の書式 (Body Text)",
+            "count": f"{len(styled_body)} 段落",
+            "status": rule.elements[0].pass_message,
+            "style_ok": True,
+        })
+    for detail in para_details:
+        detail["ok"] = detail.get("punct_ok", detail.get("style_ok"))
+
     return {
         "title": rule.title,
-        "ok": punct_ok,
+        "ok": punct_ok and formatting_ok,
         "details": para_details,
         "extra_info": rule.extra_info.to_output(),
         "rules": dict(rule.rules),
@@ -211,8 +235,21 @@ def build_paragraphs_section(body_p: List[Paragraph], rule: WordSectionRule) -> 
     }
 
 
-def build_margins_section(doc: Document, rule: WordSectionRule) -> Dict[str, Any]:
-    sections = check_sections(doc, require_a4=True)
+def build_margins_section(doc: Document, parts: PasjParts, rule: WordSectionRule) -> Dict[str, Any]:
+    body_sections = paragraph_sections(doc, parts.body_p + parts.heading_p)
+    sections = check_sections(doc, require_a4=True, body_sections=body_sections)
+    for section in sections:
+        notes = []
+        if section["page_size"] != "A4":
+            notes.append("用紙を A4 (210 × 297 mm) に設定してください")
+        elif not section["margins_ok"]:
+            notes.append("余白 [上, 下, 左, 右] を [37, 19, 20, 20] mm に設定してください")
+        if not section["col_ok"]:
+            if section["expected_columns"] and section["col_number"] != section["expected_columns"]:
+                notes.append("本文を 2 段組に設定してください")
+            else:
+                notes.append("本文の段幅を 82.5 mm、段間隔を 5.0 mm に設定してください")
+        section["notes"] = " / ".join(notes)
     margins_ok = all(s["margins_ok"] and s["col_ok"] for s in sections)
     return {
         "title": rule.title,
@@ -299,12 +336,19 @@ def build_summary(parts: PasjParts, doc: Document, rules: WordRules) -> Dict[str
         {"table": [to_element(p) for p in parts.tbl_cap_p]},
     )
 
-    summary["References"] = evaluate_section(
-        rules.sections["References"],
-        {"reference": [to_element(p) for p in parts.ref_p]},
+    paragraph_numbers = {p._p: index for index, p in enumerate(doc.paragraphs, 1)}
+    citation_paragraphs = [
+        (paragraph_numbers[p._p], p)
+        for p in (*parts.heading_p, *parts.body_p, *parts.fig_cap_p, *parts.tbl_cap_p)
+        if p._p in paragraph_numbers
+    ]
+    citation_paragraphs.sort(key=lambda item: item[0])
+    summary["References"] = build_references_section(
+        rules.sections["References"], citation_paragraphs,
+        [(paragraph_numbers[p._p], p) for p in parts.ref_p],
     )
 
-    summary["Margins"] = build_margins_section(doc, rules.sections["Margins"])
+    summary["Margins"] = build_margins_section(doc, parts, rules.sections["Margins"])
 
     summary["Styles"] = build_styles_section(doc, rules.sections["Styles"], rules.required_styles)
 
@@ -323,7 +367,9 @@ class PasjWordChecker:
         data: bytes,
         filename: str = "document.docx",
     ) -> Dict[str, Any]:
-        doc = open_docx(data)
+        return self.check_document(open_docx(data), filename)
+
+    def check_document(self, doc: Document, filename: str) -> Dict[str, Any]:
         parts = classify_paragraphs(doc)
         rules = load_rules("pasj_word", WordRules)
         summary = build_summary(parts, doc, rules)
@@ -335,14 +381,3 @@ class PasjWordChecker:
             "metadata": doc_metadata(doc),
             "filename": filename,
         }
-
-    def validate(
-        self,
-        file_source: Any,
-        filename: str = "document.docx",
-        conference_id: Any = None,
-    ) -> Dict[str, Any]:
-        data = file_source if isinstance(file_source, bytes) else (
-            file_source.getvalue() if hasattr(file_source, "getvalue") else open(file_source, "rb").read()
-        )
-        return self.check(data, filename=filename)

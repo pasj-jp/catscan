@@ -1,7 +1,7 @@
 import re
 from collections import OrderedDict
 from itertools import chain
-from .styles import check_style
+from ..common.docx_utils import check_style
 from .constants import (
     FIGURE_STYLES as STYLES,
     VALID_FIGURE_STYLES,
@@ -14,8 +14,8 @@ RE_WRONG_TITLES = re.compile(r'(^Fig.\s?\d+|^Figure\s?\d+[.\s]+)')
 RE_FIG_IN_TEXT = re.compile(r'(Fig.\s?\d+|Figure\s?\d+[.\-\s]+)')
 EXTRA_INF0 = {
     'title':'Use Breakdown',
-    'headers': '<thead><tr><th>No.</th><th colspan="2">Caption</th><th>Unique</th><th colspan="2">References</th><th width="30%">Text</th></tr></thead>',
-    'columns': ['id', 'name', 'caption_ok', 'unique_ok', 'refs', 'used_ok', 'text'],
+    'headers': '<thead><tr><th>No.</th><th colspan="2">Caption</th><th>Unique</th><th colspan="2">References</th><th width="30%">Text</th><th>Notes</th></tr></thead>',
+    'columns': ['id', 'name', 'caption_ok', 'unique_ok', 'refs', 'used_ok', 'text', 'notes'],
     'multi': True
 }
 
@@ -128,10 +128,12 @@ def extract_figures(doc):
                     'refs': refs,
                     'unique_ok': len(caption) == 1,
                     'found_ok': len(caption) > 0,
-                    'caption_ok': len(caption) == 1 and c['name'].endswith(':'),
+                    'caption_ok': len(caption) == 1 and c['name'].endswith(':') and c['text'].endswith('.'),
                     'used_ok': len(refs) > 0
                 }
-                figure.update(**c)
+                figure.update(c)
+                if not c["text"].endswith("."):
+                    figure["notes"] = "End the figure caption with a period."
                 figures[i].append(figure)
         elif wrong:
             for c in wrong:
@@ -153,7 +155,7 @@ def extract_figures(doc):
                 'refs': refs,
                 'unique_ok': len(caption) == 1,
                 'found_ok': len(caption) > 0,
-                'caption_ok': len(caption) == 1 and c['name'].endswith(':'),
+                'caption_ok': False,
                 'used_ok': len(refs) > 0
             })
 

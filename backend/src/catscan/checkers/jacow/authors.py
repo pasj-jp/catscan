@@ -1,5 +1,5 @@
 import re
-from .styles import check_style_detail
+from ..common.docx_utils import check_style_detail
 from .constants import (
     AUTHOR_STYLES as STYLES,
     AUTHOR_EXTRA_RULES as EXTRA_RULES,

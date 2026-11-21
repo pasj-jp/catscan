@@ -1,15 +1,4 @@
-from ..common.layout import (
-    check_sections,
-    check_margins,
-    check_margins_A4,
-    check_margins_JACoW,
-    check_margins_letter,
-    get_margins,
-    get_margins_A4,
-    get_margins_JACoW,
-    get_margins_letter,
-    get_columns,
-)
+from ..common.layout import check_sections, paragraph_sections
 
 EXTRA_RULES = [
     """
@@ -40,14 +29,23 @@ EXTRA_RULES = [
 HELP_INFO = "CSEPageSizeandMargins"
 EXTRA_INFO = {
     "title": "Style Breakdown",
-    "headers": "<thead><tr><th>Section</th><th>Page Size</th><th colspan=\"2\">Margins</th><th>Columns</th><th colspan=\"2\">Column Gutter (cm)</th></tr> </thead>",
-    "columns": ["loop.index", "page_size", "margins", "margins_ok", "col_number", "col_gutter", "col_ok"],
+    "headers": "<thead><tr><th>Section</th><th>Page Size</th><th colspan=\"2\">Margins</th><th>Columns</th><th colspan=\"2\">Column Gutter (cm)</th><th>Notes</th></tr> </thead>",
+    "columns": ["loop.index", "page_size", "margins", "margins_ok", "col_number", "col_gutter", "col_ok", "notes"],
 }
 
 
 def get_margin_summary(doc):
     sections = check_sections(doc)
-    ok = all([tick["margins_ok"] for tick in sections]) and all([tick["col_ok"] for tick in sections])
+    body = [p for p in doc.paragraphs if p.text.strip() and p.style.name in {
+        "JACoW_Body Text Indent", "Body Text Indent",
+    }]
+    body_sections = paragraph_sections(doc, body)
+    # Full-width figures and example blocks can interrupt a two-column body.
+    if body_sections and all(sections[i]["col_number"] == 1 for i in body_sections):
+        for index in body_sections:
+            sections[index]["col_ok"] = False
+            sections[index]["notes"] = "Set the manuscript body to two columns."
+    ok = all(section["margins_ok"] and section["col_ok"] for section in sections)
     return {
         "title": "Page Size and Margins",
         "extra_rules": EXTRA_RULES,
